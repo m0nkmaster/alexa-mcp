@@ -14,6 +14,8 @@ export interface Device {
 
 export interface Appliance {
   entityId: string;
+  /** GraphQL endpoint ID (amzn1.alexa.endpoint.*) when available from layout; used for eu-api control */
+  endpointId?: string;
   applianceId: string;
   friendlyName: string;
   friendlyDescription?: string;
@@ -53,43 +55,11 @@ export class AlexaClient {
     return this.creds;
   }
 
-  private async get(
-    url: string,
-    base: "layla" | "alexa" = "layla"
-  ): Promise<unknown> {
-    const creds = await this.ensureAuth();
+  /** GET from app API host (eu-api / na-api). Returns {} on failure (non-throwing). */
+  private async getFromAppApi(url: string): Promise<unknown> {
     const config = getConfig(this.domain);
-    const baseUrl = base === "layla" ? config.laylaBase : config.alexaBase;
-    const res = await fetch(`${baseUrl}${url}`, {
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) {
-      if (process.env.ALEXA_DEBUG) {
-        console.error(
-          `[alexa-mcp] GET ${baseUrl}${url} → ${res.status} (empty body)`
-        );
-      }
-      return {};
-    }
-    return JSON.parse(text) as unknown;
-  }
-
-  /** GET from eu-api host when set (UK/EU app uses this). */
-  private async getFromEuApi(url: string): Promise<unknown> {
-    const config = getConfig(this.domain);
-    if (!config.euApiBase) return {};
     const creds = await this.ensureAuth();
-    const fullUrl = `${config.euApiBase.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
+    const fullUrl = `${config.appApiBase.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
     const res = await fetch(fullUrl, {
       headers: {
         Cookie: creds.cookies,
@@ -108,56 +78,178 @@ export class AlexaClient {
     }
   }
 
-  /** Fetch Phoenix (smart home) with optional locale/UA. Returns parsed JSON or {} on empty/299. */
-  private async fetchPhoenix(base: "layla" | "alexa"): Promise<{ data: unknown; status: number; bodyLength: number }> {
+  /** GET app endpoint. Throws on failure. */
+  private async getApp(url: string): Promise<unknown> {
     const config = getConfig(this.domain);
-    const baseUrl = base === "layla" ? config.laylaBase : config.alexaBase;
-    return this.fetchPhoenixAt(baseUrl);
-  }
-
-  /** Fetch Phoenix from an arbitrary base URL (e.g. eu-api-alexa.amazon.co.uk from app capture). */
-  private async fetchPhoenixAt(baseUrl: string): Promise<{ data: unknown; status: number; bodyLength: number }> {
     const creds = await this.ensureAuth();
-    const config = getConfig(this.domain);
-    const url = `${baseUrl.replace(/\/$/, "")}/api/phoenix`;
-    const res = await fetch(url, {
+    const baseUrl = config.appApiBase;
+    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
+    const res = await fetch(fullUrl, {
       headers: {
         Cookie: creds.cookies,
         csrf: creds.csrf,
         "Content-Type": "application/json",
         Accept: "application/json",
-        "Accept-Language": config.locale,
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
     });
-    const text = await res.text();
-    if (process.env.ALEXA_DEBUG) {
-      console.error(`[alexa-mcp] GET ${url} → ${res.status} (body length ${text.length})`);
-    }
     if (!res.ok) {
-      return { data: {}, status: res.status, bodyLength: text.length };
+      const text = await res.text();
+      throw new Error(`API error ${res.status}: ${text}`);
     }
-    if (!text.trim()) {
-      return { data: {}, status: res.status, bodyLength: 0 };
+    const text = await res.text();
+    if (!text.trim()) return {};
+    return JSON.parse(text) as unknown;
+  }
+
+  /** POST app endpoint. Throws on failure. */
+  private async postApp(url: string, body: unknown): Promise<unknown> {
+    const config = getConfig(this.domain);
+    const creds = await this.ensureAuth();
+    const baseUrl = config.appApiBase;
+    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
+    const res = await fetch(fullUrl, {
+      method: "POST",
+      headers: {
+        Cookie: creds.cookies,
+        csrf: creds.csrf,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`API error ${res.status}: ${text}`);
     }
+    const text = await res.text();
+    if (!text.trim()) return {};
+    return JSON.parse(text) as unknown;
+  }
+
+  /** PUT app endpoint. Throws on failure. */
+  private async putApp(url: string, body: unknown): Promise<unknown> {
+    const config = getConfig(this.domain);
+    const creds = await this.ensureAuth();
+    const baseUrl = config.appApiBase;
+    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
+    const res = await fetch(fullUrl, {
+      method: "PUT",
+      headers: {
+        Cookie: creds.cookies,
+        csrf: creds.csrf,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+    const text = await res.text();
+    if (!text.trim()) return {};
+    return JSON.parse(text) as unknown;
+  }
+
+  /** POST to app API (e.g. control-media-session). */
+  private async postFromAppApi(url: string, body: unknown): Promise<{ ok: boolean; data?: unknown }> {
+    const config = getConfig(this.domain);
+    const creds = await this.ensureAuth();
+    const fullUrl = `${config.appApiBase.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
+    const res = await fetch(fullUrl, {
+      method: "POST",
+      headers: {
+        Cookie: creds.cookies,
+        csrf: creds.csrf,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] POST ${fullUrl} → ${res.status}: ${text.slice(0, 200)}`);
+      }
+      throw new Error(`Media API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const text = await res.text();
+    if (!text.trim()) return { ok: true };
     try {
-      return { data: JSON.parse(text) as unknown, status: res.status, bodyLength: text.length };
+      return { ok: true, data: JSON.parse(text) as unknown };
     } catch {
-      return { data: {}, status: res.status, bodyLength: text.length };
+      return { ok: true };
     }
   }
 
   /**
-   * POST /api/smarthome/v2/endpoints (eu-api-alexa) — used by the Alexa app for device list.
+   * GET /api/smarthome/v1/presentation/devices/control — layout IDs to capabilities.
+   * Returns layout keys (endpoint IDs like amzn1.alexa.endpoint.*) when available.
+   */
+  private async fetchLayouts(): Promise<string[]> {
+    try {
+      const data = (await this.getFromAppApi(
+        "/api/smarthome/v1/presentation/devices/control"
+      )) as { layouts?: Record<string, unknown> };
+      const layouts = data?.layouts;
+      if (layouts && typeof layouts === "object") {
+        return Object.keys(layouts);
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  /**
+   * POST /nexus/v1/graphql (eu-api) — power/brightness control. Uses endpointId (amzn1.alexa.endpoint.*).
+   */
+  private async graphqlControl(
+    endpointId: string,
+    action: "turnOn" | "turnOff" | "setBrightness",
+    brightness?: number
+  ): Promise<void> {
+    if (action === "setBrightness") {
+      if (brightness === undefined) throw new Error("brightness required for setBrightness");
+      await this.postApp("/nexus/v1/graphql", {
+        operationName: "setBrightness",
+        variables: {
+          featureControlRequests: [
+            {
+              endpointId,
+              featureName: "brightness",
+              featureOperationName: "setBrightness",
+              payload: { brightness },
+            },
+          ],
+        },
+        query: "mutation setBrightness($featureControlRequests: [FeatureControlRequestInput!]!) { setBrightness(featureControlRequests: $featureControlRequests) }",
+      });
+      return;
+    }
+    await this.postApp("/nexus/v1/graphql", {
+      operationName: "updatePowerFeatureForEndpoints",
+      variables: {
+        featureControlRequests: [
+          {
+            endpointId,
+            featureName: "power",
+            featureOperationName: action === "turnOn" ? "turnOn" : "turnOff",
+          },
+        ],
+      },
+      query: "mutation updatePowerFeatureForEndpoints($featureControlRequests: [FeatureControlRequestInput!]!) { updatePowerFeatureForEndpoints(featureControlRequests: $featureControlRequests) }",
+    });
+  }
+
+  /**
+   * POST /api/smarthome/v2/endpoints — used by the Alexa app for device list.
    * Returns endpoints array; names may be encrypted (we use serialNumber as display when missing).
    */
   private async fetchSmarthomeV2Endpoints(): Promise<{ data: unknown; status: number }> {
     const config = getConfig(this.domain);
-    if (!config.euApiBase) {
-      return { data: {}, status: 0 };
-    }
     const creds = await this.ensureAuth();
-    const url = `${config.euApiBase.replace(/\/$/, "")}/api/smarthome/v2/endpoints`;
+    const url = `${config.appApiBase.replace(/\/$/, "")}/api/smarthome/v2/endpoints`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -187,66 +279,9 @@ export class AlexaClient {
     }
   }
 
-  private async post(
-    url: string,
-    body: unknown,
-    base: "layla" | "alexa" = "layla"
-  ): Promise<unknown> {
-    const creds = await this.ensureAuth();
-    const config = getConfig(this.domain);
-    const baseUrl = base === "layla" ? config.laylaBase : config.alexaBase;
-    const res = await fetch(`${baseUrl}${url}`, {
-      method: "POST",
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return {};
-    return JSON.parse(text) as unknown;
-  }
-
-  private async put(url: string, body: unknown): Promise<unknown> {
-    const creds = await this.ensureAuth();
-    const config = getConfig(this.domain);
-    const res = await fetch(`${config.laylaBase}${url}`, {
-      method: "PUT",
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return {};
-    return JSON.parse(text) as unknown;
-  }
-
   async getDevices(): Promise<Device[]> {
-    const config = getConfig(this.domain);
-    if (config.euApiBase) {
-      const data = (await this.getFromEuApi("/api/devices-v2/device?cached=true")) as { devices?: Device[] };
-      const devices = data?.devices ?? [];
-      if (devices.length > 0) return devices;
-    }
-    const data = (await this.get("/api/devices-v2/device?cached=true")) as {
-      devices?: Device[];
-    };
-    return data.devices ?? [];
+    const data = (await this.getFromAppApi("/api/devices-v2/device?cached=true")) as { devices?: Device[] };
+    return data?.devices ?? [];
   }
 
   async resolveDevice(deviceQuery: string): Promise<Device | null> {
@@ -282,7 +317,7 @@ export class AlexaClient {
         },
       },
     };
-    await this.post("/api/behaviors/preview", {
+    await this.postApp("/api/behaviors/preview", {
       behaviorId: "PREVIEW",
       sequenceJson: JSON.stringify(sequence),
       status: "ENABLED",
@@ -309,7 +344,7 @@ export class AlexaClient {
         },
       },
     };
-    await this.post("/api/behaviors/preview", {
+    await this.postApp("/api/behaviors/preview", {
       behaviorId: "PREVIEW",
       sequenceJson: JSON.stringify(sequence),
       status: "ENABLED",
@@ -338,7 +373,7 @@ export class AlexaClient {
         },
       },
     };
-    await this.post("/api/behaviors/preview", {
+    await this.postApp("/api/behaviors/preview", {
       behaviorId: "PREVIEW",
       sequenceJson: JSON.stringify(sequence),
       status: "ENABLED",
@@ -346,54 +381,28 @@ export class AlexaClient {
   }
 
   async listAppliances(): Promise<Appliance[]> {
-    const parsePhoenixResponse = (data: unknown): Appliance[] => {
+    const parseSmarthomeV2Response = (
+      data: unknown,
+      endpointIds?: string[]
+    ): Appliance[] => {
       const d = data as {
-        networkDetail?: Array<{
-          applianceDetails?: Record<
-            string,
-            {
-              entityId: string;
-              applianceId: string;
-              friendlyName: string;
-              friendlyDescription?: string;
-              applianceTypes: string[];
-              isReachable: boolean;
-            }
-          >;
+        endpoints?: Array<{
+          __type?: string;
+          identifier?: { deviceType?: string; deviceSerialNumber?: string };
+          serialNumber?: string;
+          deviceType?: string;
+          deviceAccountId?: string;
+          deviceOwnerCustomerId?: string;
         }>;
       };
-      const out: Appliance[] = [];
-      for (const nd of d.networkDetail ?? []) {
-        for (const k of Object.keys(nd.applianceDetails ?? {})) {
-          const a = nd.applianceDetails![k];
-          out.push({
-            entityId: a.entityId,
-            applianceId: a.applianceId,
-            friendlyName: a.friendlyName,
-            friendlyDescription: a.friendlyDescription,
-            applianceTypes: a.applianceTypes,
-            isReachable: a.isReachable,
-          });
-        }
-      }
-      return out;
-    };
-
-    const parseSmarthomeV2Response = (data: unknown): Appliance[] => {
-      const d = data as { endpoints?: Array<{
-        __type?: string;
-        identifier?: { deviceType?: string; deviceSerialNumber?: string };
-        serialNumber?: string;
-        deviceType?: string;
-        deviceAccountId?: string;
-        deviceOwnerCustomerId?: string;
-      }> };
       const endpoints = d.endpoints ?? [];
-      return endpoints.map((ep) => {
+      return endpoints.map((ep, i) => {
         const serial = ep.serialNumber ?? ep.identifier?.deviceSerialNumber ?? "";
         const deviceType = ep.deviceType ?? ep.identifier?.deviceType ?? "";
+        const endpointId = endpointIds && i < endpointIds.length ? endpointIds[i] : undefined;
         return {
-          entityId: serial,
+          entityId: endpointId ?? serial,
+          endpointId,
           applianceId: ep.deviceAccountId ?? serial,
           friendlyName: serial,
           applianceTypes: deviceType ? [deviceType] : [],
@@ -402,45 +411,14 @@ export class AlexaClient {
       });
     };
 
-    const config = getConfig(this.domain);
-
-    // 1) Try POST /api/smarthome/v2/endpoints (eu-api) — same as Alexa app (from HAR capture).
-    if (config.euApiBase) {
-      const r = await this.fetchSmarthomeV2Endpoints();
-      if (r.status === 200) {
-        const appliances = parseSmarthomeV2Response(r.data);
-        if (appliances.length > 0) {
-          return appliances;
-        }
-      }
-    }
-
-    // 2) Fall back to GET /api/phoenix on layla/alexa/eu-api.
-    const basesToTry: string[] = [];
-    if (config.euApiBase) basesToTry.push(config.euApiBase);
-    const tryAlexaFirst = this.domain === "amazon.co.uk" || this.domain === "amazon.de";
-    basesToTry.push(tryAlexaFirst ? config.alexaBase : config.laylaBase);
-    basesToTry.push(tryAlexaFirst ? config.laylaBase : config.alexaBase);
-
-    let data: unknown;
-    let appliances = parsePhoenixResponse({});
-    for (const baseUrl of basesToTry) {
-      const r = await this.fetchPhoenixAt(baseUrl);
-      data = r.data;
-      appliances = parsePhoenixResponse(data);
-      if (appliances.length > 0) break;
-      const hasKeys = typeof data === "object" && data !== null && Object.keys(data).length > 0;
-      if (hasKeys) break;
-    }
-
-    if (appliances.length === 0 && process.env.ALEXA_DEBUG) {
-      console.error(
-        "[alexa-mcp] appliances: 0 devices. Phoenix response keys:",
-        typeof data === "object" && data !== null ? Object.keys(data) : data
-      );
-    }
-
-    return appliances;
+    const r = await this.fetchSmarthomeV2Endpoints();
+    if (r.status !== 200) return [];
+    const endpoints = (r.data as { endpoints?: unknown[] })?.endpoints ?? [];
+    const layoutIds = await this.fetchLayouts();
+    const useLayoutIds =
+      layoutIds.length === endpoints.length &&
+      layoutIds.every((id) => id.startsWith("amzn1."));
+    return parseSmarthomeV2Response(r.data, useLayoutIds ? layoutIds : undefined);
   }
 
   async controlAppliance(
@@ -448,13 +426,18 @@ export class AlexaClient {
     action: "turnOn" | "turnOff" | "setBrightness",
     brightness?: number
   ): Promise<void> {
+    const useGraphql = entityId.startsWith("amzn1.alexa.endpoint.");
+    if (useGraphql) {
+      await this.graphqlControl(entityId, action, brightness);
+      return;
+    }
     const params: Record<string, unknown> = { action };
     if (action === "setBrightness") {
       if (brightness === undefined)
         throw new Error("brightness required for setBrightness");
       params.brightness = brightness;
     }
-    await this.put("/api/phoenix/state", {
+    await this.putApp("/api/phoenix/state", {
       controlRequests: [
         {
           entityId,
@@ -466,7 +449,12 @@ export class AlexaClient {
   }
 
   async setBrightness(entityId: string, brightness: number): Promise<void> {
-    await this.put("/api/phoenix/state", {
+    const useGraphql = entityId.startsWith("amzn1.alexa.endpoint.");
+    if (useGraphql) {
+      await this.graphqlControl(entityId, "setBrightness", brightness);
+      return;
+    }
+    await this.putApp("/api/phoenix/state", {
       controlRequests: [
         {
           entityId,
@@ -477,19 +465,124 @@ export class AlexaClient {
     });
   }
 
-  async listRoutines(): Promise<Routine[]> {
-    const data = (await this.get("/api/behaviors/v2/automations", "alexa")) as
-      | Routine[]
-      | { automations?: Routine[] };
-    if (Array.isArray(data)) return data;
-    return data.automations ?? [];
+  /** Get full automation (includes sequence) from app API. Used for run. */
+  async getAutomation(automationId: string): Promise<{ automationId: string; name?: string; sequence?: unknown; sequenceJson?: string } | null> {
+    try {
+      const data = (await this.getApp(
+        `/api/behaviors/automations/${encodeURIComponent(automationId)}`
+      )) as { automationId?: string; name?: string; sequence?: unknown; sequenceJson?: string };
+      if (!data?.automationId) return null;
+      return {
+        automationId: data.automationId,
+        name: data.name,
+        sequence: data.sequence,
+        sequenceJson:
+          typeof data.sequenceJson === "string"
+            ? data.sequenceJson
+            : data.sequence != null
+              ? JSON.stringify(data.sequence)
+              : undefined,
+      };
+    } catch {
+      return null;
+    }
   }
 
-  async runRoutine(automationId: string, sequenceJson: string): Promise<void> {
-    await this.post("/api/behaviors/preview", {
+  async listRoutines(): Promise<Routine[]> {
+    const data = (await this.getApp("/api/routines/routinesandgroups")) as {
+      routines?: Array<{
+        automationId?: string;
+        primary?: string;
+        secondary?: string;
+        utterance?: string;
+        utterances?: string[];
+        status?: string;
+        type?: string;
+      }>;
+    };
+    const routines = data?.routines ?? [];
+    return routines.map((r) => ({
+      automationId: r.automationId ?? "",
+      name: r.primary ?? r.secondary ?? "",
+      sequence: undefined,
+      status: r.status,
+      type: r.type,
+    }));
+  }
+
+  async runRoutine(automationId: string, sequenceJson?: string): Promise<void> {
+    let payload = sequenceJson;
+    if (!payload) {
+      const automation = await this.getAutomation(automationId);
+      payload = automation?.sequenceJson ?? automation?.sequence != null ? JSON.stringify(automation.sequence) : undefined;
+      if (!payload) {
+        throw new Error(`Could not get sequence for routine ${automationId}. Fetch automation failed or list did not include sequence.`);
+      }
+    }
+    await this.postApp("/api/behaviors/preview", {
       behaviorId: automationId,
-      sequenceJson,
+      sequenceJson: payload,
       status: "ENABLED",
+    });
+  }
+
+  /** Media: now-playing state for a device. Returns taskSessionId when something is playing. */
+  async getNowPlaying(
+    deviceSerialNumber: string,
+    deviceType: string
+  ): Promise<{ taskSessionId?: string; [key: string]: unknown }> {
+    const q = new URLSearchParams({
+      deviceSerialNumber,
+      deviceType,
+      screenWidth: "375",
+    });
+    const data = (await this.getFromAppApi(
+      `/api/np/player?${q.toString()}`
+    )) as { taskSessionId?: string; [key: string]: unknown };
+    return data ?? {};
+  }
+
+  /** Media: list active media sessions. */
+  async listMediaSessions(): Promise<unknown> {
+    return this.getFromAppApi("/api/np/list-media-sessions");
+  }
+
+  /** Media: transport control (play, pause, resume, stop, next, previous). */
+  async controlMediaSession(
+    device: Device,
+    taskSessionId: string,
+    command:
+      | "play"
+      | "pause"
+      | "resume"
+      | "stop"
+      | "next"
+      | "previous"
+  ): Promise<void> {
+    const commandTypes: Record<string, string> = {
+      play: "NPPlayCommand",
+      pause: "NPPauseCommand",
+      resume: "NPResumeCommand",
+      stop: "NPStopCommand",
+      next: "NPNextCommand",
+      previous: "NPPreviousCommand",
+    };
+    const typeName = commandTypes[command];
+    if (!typeName) throw new Error(`Unknown media command: ${command}`);
+
+    const controllerEndpoint = {
+      __type: "NPSingletonEndpoint:1",
+      id: {
+        __type: "NPEndpointIdentifier:1",
+        deviceSerialNumber: device.serialNumber,
+        deviceType: device.deviceType,
+      },
+    };
+
+    await this.postFromAppApi("/api/np/control-media-session", {
+      taskSessionId,
+      command: { type: typeName },
+      controllerEndpoint,
     });
   }
 }

@@ -299,12 +299,75 @@ program
     const client = new AlexaClient({ refreshToken: token });
     const routines = await client.listRoutines();
     const r = routines.find((x) => x.automationId === automationId);
-    if (!r || !r.sequence) {
+    if (!r) {
       console.error(`Routine not found: ${automationId}`);
       process.exit(1);
     }
-    await client.runRoutine(r.automationId, JSON.stringify(r.sequence));
+    const sequenceJson = r.sequence != null ? JSON.stringify(r.sequence) : undefined;
+    await client.runRoutine(r.automationId, sequenceJson);
     console.log(`Ran routine: ${r.name}`);
   });
+
+program
+  .command("now-playing")
+  .description("Show now-playing state for a device (EU/UK)")
+  .option("-d, --device <name>", "Device name or serial (required)", "")
+  .action(async (opts: { device: string }) => {
+    if (!opts.device) {
+      console.error("--device is required");
+      process.exit(1);
+    }
+    const token = loadRefreshToken();
+    if (!token) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: token });
+    const d = await client.resolveDevice(opts.device);
+    if (!d) {
+      console.error(`Device not found: ${opts.device}`);
+      process.exit(1);
+    }
+    const state = await client.getNowPlaying(d.serialNumber, d.deviceType);
+    console.log(JSON.stringify({ device: d.accountName, ...state }, null, 2));
+  });
+
+const mediaCmd = program
+  .command("media <command>")
+  .description("Transport control: play, pause, resume, stop, next, previous (EU/UK)")
+  .option("-d, --device <name>", "Device name or serial (required)", "");
+
+const mediaCommands = ["play", "pause", "resume", "stop", "next", "previous"];
+
+mediaCmd.action(async (command: string, opts: { device: string }) => {
+  if (!opts.device) {
+    console.error("--device is required");
+    process.exit(1);
+  }
+  const c = command.toLowerCase();
+  if (!mediaCommands.includes(c)) {
+    console.error(`Command must be one of: ${mediaCommands.join(", ")}`);
+    process.exit(1);
+  }
+  const token = loadRefreshToken();
+  if (!token) {
+    console.error("No refresh token.");
+    process.exit(1);
+  }
+  const client = new AlexaClient({ refreshToken: token });
+  const d = await client.resolveDevice(opts.device);
+  if (!d) {
+    console.error(`Device not found: ${opts.device}`);
+    process.exit(1);
+  }
+  const state = await client.getNowPlaying(d.serialNumber, d.deviceType);
+  const taskSessionId = state?.taskSessionId;
+  if (!taskSessionId) {
+    console.error(`No active playback on ${d.accountName}. Start something first (e.g. "Alexa, play jazz").`);
+    process.exit(1);
+  }
+  await client.controlMediaSession(d, taskSessionId, c as "play" | "pause" | "resume" | "stop" | "next" | "previous");
+  console.log(`${command} sent to ${d.accountName}`);
+});
 
 program.parse();

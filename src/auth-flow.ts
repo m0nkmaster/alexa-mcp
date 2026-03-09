@@ -1,6 +1,5 @@
 import { createServer } from "node:http";
 import type { Domain } from "./config.js";
-import { getConfig } from "./config.js";
 import { startTunnel } from "./tunnel.js";
 
 const PROXY_PORT = 8080;

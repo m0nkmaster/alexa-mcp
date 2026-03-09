@@ -286,15 +286,92 @@ export function registerAlexaTools(
       const client = await clientFactory();
       const routines = await client.listRoutines();
       const r = routines.find((x) => x.automationId === automationId);
-      if (!r || !r.sequence) {
+      if (!r) {
         return {
           content: [{ type: "text" as const, text: `Routine not found: ${automationId}` }],
           isError: true,
         };
       }
-      await client.runRoutine(r.automationId, JSON.stringify(r.sequence));
+      const sequenceJson = r.sequence != null ? JSON.stringify(r.sequence) : undefined;
+      await client.runRoutine(r.automationId, sequenceJson);
       return {
         content: [{ type: "text" as const, text: `Ran routine: ${r.name}` }],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_now_playing",
+    {
+      title: "Now Playing",
+      description: "Get now-playing state for an Echo device (includes taskSessionId for transport control)",
+      inputSchema: z.object({
+        device: z.string().describe("Device name or serial number"),
+      }),
+    },
+    async ({ device }) => {
+      const client = await clientFactory();
+      const d = await client.resolveDevice(device);
+      if (!d) {
+        return {
+          content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+          isError: true,
+        };
+      }
+      const state = await client.getNowPlaying(d.serialNumber, d.deviceType);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ device: d.accountName, ...state }, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_media_control",
+    {
+      title: "Media Control",
+      description: "Play, pause, resume, stop, next, or previous on an Echo device's current playback",
+      inputSchema: z.object({
+        device: z.string().describe("Device name or serial number"),
+        command: z
+          .enum(["play", "pause", "resume", "stop", "next", "previous"])
+          .describe("Transport command"),
+      }),
+    },
+    async ({ device, command }) => {
+      const client = await clientFactory();
+      const d = await client.resolveDevice(device);
+      if (!d) {
+        return {
+          content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+          isError: true,
+        };
+      }
+      const state = await client.getNowPlaying(d.serialNumber, d.deviceType);
+      const taskSessionId = state?.taskSessionId;
+      if (!taskSessionId) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No active playback on ${d.accountName}. Start something (e.g. "Alexa, play jazz") then try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      await client.controlMediaSession(d, taskSessionId, command);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Sent ${command} to ${d.accountName}`,
+          },
+        ],
       };
     }
   );

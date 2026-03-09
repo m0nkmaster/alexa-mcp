@@ -44,6 +44,8 @@ alexa-mcp appliances               # List smart home devices
 alexa-mcp control <entityId> turnOn|turnOff|setBrightness [--brightness 50]
 alexa-mcp routines                 # List routines
 alexa-mcp run <automationId>       # Run a routine
+alexa-mcp now-playing -d Office   # Now-playing state (EU/UK)
+alexa-mcp media play -d Office    # Play/pause/stop/next/previous (EU/UK)
 ```
 
 **Smart home (UK / empty list):** If `alexa-mcp appliances` returns `[]`, use **`switch`** or **`command`** to control by the name Alexa knows: `alexa-mcp switch "TV" off -d Office`. See [docs/API.md](docs/API.md).
@@ -78,6 +80,8 @@ When installed locally, use the path to `node_modules/alexa-mcp/dist/index.js`.
 | `alexa_switch_by_name` | Turn device on/off by name (e.g. "TV") when list is empty |
 | `alexa_list_routines` | List routines |
 | `alexa_run_routine` | Run a routine |
+| `alexa_now_playing` | Now-playing state for a device (EU/UK) |
+| `alexa_media_control` | Play, pause, resume, stop, next, previous (EU/UK) |
 | `alexa_auth_status` | Check auth status |
 
 ## Development
@@ -92,3 +96,5 @@ npm run test:integration  # Requires ALEXA_REFRESH_TOKEN
 ## API Reference
 
 The single authoritative API reference is **[docs/API.md](docs/API.md)** — region base URLs, authentication, all endpoints (devices, routines, smart home, behaviors, alarms, media), request/response bodies, and headers.
+
+**API usage:** All supported regions use the **app API** (eu-api-alexa for UK/EU, na-api-alexa for US): devices-v2, routinesandgroups, behaviors/preview, smarthome/v2/endpoints, layouts, and GraphQL for smart home control.
