@@ -1,0 +1,89 @@
+diff --git a/node_modules/alexa-cookie2/alexa-cookie.js b/node_modules/alexa-cookie2/alexa-cookie.js
+index be22ba8..1b252f8 100644
+--- a/node_modules/alexa-cookie2/alexa-cookie.js
++++ b/node_modules/alexa-cookie2/alexa-cookie.js
+@@ -386,7 +386,8 @@ function AlexaCookie() {
+                 if (!_options.proxyPort || _options.proxyPort === 0) {
+                     _options.proxyPort = proxyServer.address().port;
+                 }
+-                const errMessage = `Please open http://${_options.proxyOwnIp}:${_options.proxyPort}/ with your browser and login to Amazon. The cookie will be output here after successfull login.`;
++                const openUrl = _options.proxyTunnelUrl || `http://${_options.proxyOwnIp}:${_options.proxyPort}/`;
++                const errMessage = `Please open ${openUrl} with your browser and login to Amazon. The cookie will be output here after successfull login.`;
+                 callback && callback(new Error(errMessage), null);
+             });
+         }
+diff --git a/node_modules/alexa-cookie2/lib/proxy.js b/node_modules/alexa-cookie2/lib/proxy.js
+index a70aa48..aec2fb4 100644
+--- a/node_modules/alexa-cookie2/lib/proxy.js
++++ b/node_modules/alexa-cookie2/lib/proxy.js
+@@ -172,19 +172,25 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+         };
+     };
+     let returnedInitUrl;
++    const proxyBaseUrl = _options.proxyTunnelUrl || `http://${_options.proxyOwnIp}:${_options.proxyPort}`;
++    const hostMatch = (host) => {
++        if (host === `${_options.proxyOwnIp}:${_options.proxyPort}`) return true;
++        if (_options.proxyTunnelUrl && host === _options.proxyOwnIp) return true;
++        return false;
++    };
+ 
+     function router(req) {
+         const url = (req.originalUrl || req.url);
+         _options.logger && _options.logger(`Router: ${url} / ${req.method} / ${JSON.stringify(req.headers)}`);
+-        if (req.headers.host === `${_options.proxyOwnIp}:${_options.proxyPort}`) {
++        if (hostMatch(req.headers.host)) {
+             if (url.startsWith(`/www.${_options.baseAmazonPage}/`)) {
+                 return `https://www.${_options.baseAmazonPage}`;
+             } else if (url.startsWith(`/alexa.${_options.baseAmazonPage}/`)) {
+                 return `https://alexa.${_options.baseAmazonPage}`;
+             } else if (req.headers.referer) {
+-                if (req.headers.referer.startsWith(`http://${_options.proxyOwnIp}:${_options.proxyPort}/www.${_options.baseAmazonPage}/`)) {
++                if (req.headers.referer.startsWith(`${proxyBaseUrl}/www.${_options.baseAmazonPage}/`)) {
+                     return `https://www.${_options.baseAmazonPage}`;
+-                } else if (req.headers.referer.startsWith(`http://${_options.proxyOwnIp}:${_options.proxyPort}/alexa.${_options.baseAmazonPage}/`)) {
++                } else if (req.headers.referer.startsWith(`${proxyBaseUrl}/alexa.${_options.baseAmazonPage}/`)) {
+                     return `https://alexa.${_options.baseAmazonPage}`;
+                 }
+             }
+@@ -217,18 +223,18 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+         const amazonRegex = new RegExp(`https?://www.${_options.baseAmazonPage}:?[0-9]*/`.replace(/\./g, '\\.'), 'g');
+         const alexaRegex = new RegExp(`https?://alexa.${_options.baseAmazonPage}:?[0-9]*/`.replace(/\./g, '\\.'), 'g');
+         data = data.replace(/&#x2F;/g, '/');
+-        data = data.replace(amazonRegex, `http://${_options.proxyOwnIp}:${_options.proxyPort}/www.${_options.baseAmazonPage}/`);
+-        data = data.replace(alexaRegex, `http://${_options.proxyOwnIp}:${_options.proxyPort}/alexa.${_options.baseAmazonPage}/`);
++        data = data.replace(amazonRegex, `${proxyBaseUrl}/www.${_options.baseAmazonPage}/`);
++        data = data.replace(alexaRegex, `${proxyBaseUrl}/alexa.${_options.baseAmazonPage}/`);
+         //_options.logger && _options.logger('REPLACEHOSTS: ' + dataOrig + ' --> ' + data);
+         return data;
+     }
+ 
+     function replaceHostsBack(data) {
+-        const amazonRegex = new RegExp(`http://${_options.proxyOwnIp}:${_options.proxyPort}/www.${_options.baseAmazonPage}/`.replace(/\./g, '\\.'), 'g');
+-        const alexaRegex = new RegExp(`http://${_options.proxyOwnIp}:${_options.proxyPort}/alexa.${_options.baseAmazonPage}/`.replace(/\./g, '\\.'), 'g');
++        const amazonRegex = new RegExp(`${proxyBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/www\\.${_options.baseAmazonPage.replace(/\./g, '\\.')}/`, 'g');
++        const alexaRegex = new RegExp(`${proxyBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/alexa\\.${_options.baseAmazonPage.replace(/\./g, '\\.')}/`, 'g');
+         data = data.replace(amazonRegex, `https://www.${_options.baseAmazonPage}/`);
+         data = data.replace(alexaRegex, `https://alexa.${_options.baseAmazonPage}/`);
+-        if (data === `http://${_options.proxyOwnIp}:${_options.proxyPort}/`) {
++        if (data === `${proxyBaseUrl}/`) {
+             data = returnedInitUrl;
+         }
+         return data;
+@@ -321,7 +327,7 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+             const queryParams = querystring.parse(proxyRes.headers.location.substr(paramStart + 1));
+ 
+             proxyRes.statusCode = 302;
+-            proxyRes.headers.location = `http://${_options.proxyOwnIp}:${_options.proxyPort}/cookie-success`;
++            proxyRes.headers.location = `${proxyBaseUrl}/cookie-success`;
+             delete proxyRes.headers.referer;
+ 
+             _options.logger && _options.logger(`Alexa-Cookie: Proxy catched cookie: ${proxyCookies}`);
+@@ -343,7 +349,7 @@ function initAmazonProxy(_options, callbackCookie, callbackListening) {
+             _options.logger && _options.logger(`Redirect: Original Location ----> ${proxyRes.headers.location}`);
+             proxyRes.headers.location = replaceHosts(proxyRes.headers.location);
+             if (reqestHost && proxyRes.headers.location.startsWith('/')) {
+-                proxyRes.headers.location = `http://${_options.proxyOwnIp}:${_options.proxyPort}/${reqestHost}${proxyRes.headers.location}`;
++                proxyRes.headers.location = `${proxyBaseUrl}/${reqestHost}${proxyRes.headers.location}`;
+             }
+             _options.logger && _options.logger(`Redirect: Final Location ----> ${proxyRes.headers.location}`);
+             return;

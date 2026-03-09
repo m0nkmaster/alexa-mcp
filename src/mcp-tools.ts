@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { AlexaClient } from "./client.js";
-import { loadRefreshToken } from "./auth.js";
+import { loadRefreshToken, loadDomain } from "./auth.js";
 
 export function registerAlexaTools(
   server: McpServer,
@@ -164,6 +164,39 @@ export function registerAlexaTools(
   );
 
   server.registerTool(
+    "alexa_switch_by_name",
+    {
+      title: "Turn Smart Home Device On/Off by Name",
+      description: "Turn a smart plug or light on or off using its Alexa name (e.g. 'TV', 'Living Room Lamp'). Uses voice command; works when appliance list is empty.",
+      inputSchema: z.object({
+        device: z.string().describe("Echo device to send the command through (e.g. 'Lounge Echo', 'Office')"),
+        name: z.string().describe("Smart home device name as known to Alexa (e.g. 'TV', 'Landing Lamp')"),
+        state: z.enum(["on", "off"]),
+      }),
+    },
+    async ({ device, name, state }) => {
+      const client = await clientFactory();
+      const d = await client.resolveDevice(device);
+      if (!d) {
+        return {
+          content: [{ type: "text" as const, text: `Echo device not found: ${device}` }],
+          isError: true,
+        };
+      }
+      const text = state === "on" ? `turn on ${name}` : `turn off ${name}`;
+      await client.command(
+        d.serialNumber,
+        d.deviceType,
+        d.deviceOwnerCustomerId,
+        text
+      );
+      return {
+        content: [{ type: "text" as const, text: `Sent "${text}" via ${d.accountName}` }],
+      };
+    }
+  );
+
+  server.registerTool(
     "alexa_list_routines",
     {
       title: "List Routines",
@@ -181,6 +214,62 @@ export function registerAlexaTools(
           },
         ],
       };
+    }
+  );
+
+  server.registerTool(
+    "alexa_auth_status",
+    {
+      title: "Auth Status",
+      description: "Check Alexa authentication status. Returns whether configured and device count if valid.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const token = loadRefreshToken();
+      if (!token) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                configured: false,
+                message: "Not configured. Run 'alexa-mcp auth' to authenticate.",
+              }),
+            },
+          ],
+        };
+      }
+      try {
+        const client = await clientFactory();
+        const devices = await client.getDevices();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                configured: true,
+                valid: true,
+                deviceCount: devices.length,
+              }),
+            },
+          ],
+        };
+      } catch (e) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                configured: true,
+                valid: false,
+                error: String(e),
+                message: "Token invalid. Run 'alexa-mcp auth' to re-authenticate.",
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 
@@ -211,12 +300,12 @@ export function registerAlexaTools(
   );
 }
 
-export async function createClient(): Promise<AlexaClient> {
-  const token = loadRefreshToken();
+export async function createClient(refreshTokenOverride?: string): Promise<AlexaClient> {
+  const token = loadRefreshToken(refreshTokenOverride) ?? refreshTokenOverride;
   if (!token) {
     throw new Error(
-      "No refresh token. Set ALEXA_REFRESH_TOKEN or run alexacli auth and use ~/.alexa-cli/config.json"
+      "No refresh token. Set ALEXA_REFRESH_TOKEN or run 'alexa-mcp auth' to authenticate."
     );
   }
-  return new AlexaClient({ refreshToken: token });
+  return new AlexaClient({ refreshToken: token, domain: loadDomain() });
 }

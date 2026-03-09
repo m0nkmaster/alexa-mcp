@@ -1,8 +1,6 @@
 import { getConfig, type Domain } from "./config.js";
+import { loadConfig } from "./config-store.js";
 import { fetch } from "undici";
-import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 
 export interface AlexaCredentials {
   cookies: string;
@@ -14,18 +12,15 @@ export interface AuthOptions {
   domain?: Domain;
 }
 
-const CONFIG_PATH = join(homedir(), ".alexa-cli", "config.json");
+export function loadRefreshToken(prefer?: string): string | null {
+  if (prefer) return prefer;
+  const cfg = loadConfig();
+  return cfg?.refreshToken ?? null;
+}
 
-export function loadRefreshToken(): string | null {
-  const env = process.env.ALEXA_REFRESH_TOKEN;
-  if (env) return env;
-  if (!existsSync(CONFIG_PATH)) return null;
-  try {
-    const data = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
-    return data.refresh_token ?? data.refreshToken ?? null;
-  } catch {
-    return null;
-  }
+export function loadDomain(): Domain {
+  const cfg = loadConfig();
+  return (cfg?.domain ?? "amazon.co.uk") as Domain;
 }
 
 export async function authenticate(options: AuthOptions): Promise<AlexaCredentials> {
