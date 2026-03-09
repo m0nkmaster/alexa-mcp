@@ -435,7 +435,7 @@ Same base (eu-api-alexa.{tld}) unless noted. Request/response shapes not fully s
 | **Alarms auth**              | Whether api.eu.amazonalexa.com uses cookie/CSRF or bearer.                                                                                 |
 | **Media: start playback**    | Queue-and-play / play by contentToken from card.                                                                                           |
 | **Media: other transport**   | Confirm NPPlayCommand, NPNextCommand, NPPreviousCommand, NPStopCommand on control-media-session.                                           |
-| **Activity / voice history** | Polling for Alexa reply after Ask (two-way); document if needed for MCP.                                                                   |
+| **Activity / voice history** | Polling for Alexa reply after Ask (two-way); document if needed for MCP. Voice commands via `command` / behaviors/preview are fire-and-forget — we do not receive Alexa's verbal response (e.g. "Can't control for other account"). Prefer direct control (`control_by_pattern`, `control_appliance`) for smart home to avoid profile issues. |
 
 
 ---

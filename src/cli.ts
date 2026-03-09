@@ -102,6 +102,11 @@ authCmd
         const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
         const devices = await client.getDevices();
         console.log(`Status: valid (${devices.length} devices)`);
+        const ownerIds = [...new Set(devices.map((d) => d.deviceOwnerCustomerId).filter(Boolean))];
+        if (ownerIds.length > 0) {
+          console.log(`Account (deviceOwnerCustomerId): ${ownerIds.join(", ")}`);
+          console.log("Use this same account for smart home control. Compare with device/appliance owner IDs.");
+        }
       } catch (e) {
         console.log(`Status: invalid (${e})`);
         process.exit(1);
@@ -124,7 +129,8 @@ authCmd
 program
   .command("devices")
   .description("List Echo devices")
-  .action(async () => {
+  .option("-o, --owners", "Show only device names and owner customer IDs (for profile matching)")
+  .action(async (opts: { owners?: boolean }) => {
     const cfg = getAuthConfig();
     if (!cfg) {
       console.error("No refresh token. Set ALEXA_REFRESH_TOKEN or run 'alexa-mcp auth'.");
@@ -132,6 +138,13 @@ program
     }
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const devices = await client.getDevices();
+    if (opts.owners) {
+      for (const d of devices) {
+        console.log(`${d.accountName}\t${d.deviceOwnerCustomerId}`);
+      }
+      console.log("\nMatch deviceOwnerCustomerId with the account you use for 'alexa-mcp auth'.");
+      return;
+    }
     console.log(JSON.stringify(devices, null, 2));
   });
 
@@ -213,14 +226,10 @@ program
   });
 
 program
-  .command("switch <name> <state>")
-  .description("Turn smart home device on/off by name (uses voice command; works when appliances list is empty)")
-  .option("-d, --device <echo>", "Echo to send the command through (required)", "")
-  .action(async (name: string, state: string, opts: { device: string }) => {
-    if (!opts.device) {
-      console.error("--device is required (Echo device name or serial)");
-      process.exit(1);
-    }
+  .command("switch-group <group> <state>")
+  .description("Turn on/off all lights in a room group (e.g. Kitchen, Living room). Uses group membership from Alexa app.")
+  .option("--all", "Control all appliances in group, not just lights", false)
+  .action(async (group: string, state: string, opts: { all?: boolean }) => {
     const s = state.toLowerCase();
     if (s !== "on" && s !== "off") {
       console.error("State must be 'on' or 'off'");
@@ -232,19 +241,111 @@ program
       process.exit(1);
     }
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const action = s === "on" ? "turnOn" : "turnOff";
+    try {
+      const { controlled, errors } = await client.controlAppliancesByGroup(group, action, {
+        lightsOnly: !opts.all,
+      });
+      if (controlled.length > 0) {
+        console.log(`${action}: ${controlled.join(", ")}`);
+      }
+      if (errors.length > 0) {
+        console.error(errors.join("\n"));
+      }
+      if (controlled.length === 0 && errors.length === 0) {
+        console.error(`No lights in group "${group}". Try 'alexa-mcp groups' to see groups.`);
+        process.exit(1);
+      }
+    } catch (e) {
+      console.error(String(e));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("switch-room <pattern> <state>")
+  .description(
+    "Turn on/off all smart home devices matching a pattern (e.g. 'kitchen lights', 'living room'). Uses direct control—avoids profile issues."
+  )
+  .action(async (pattern: string, state: string) => {
+    const s = state.toLowerCase();
+    if (s !== "on" && s !== "off") {
+      console.error("State must be 'on' or 'off'");
+      process.exit(1);
+    }
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const action = s === "on" ? "turnOn" : "turnOff";
+    const { controlled, errors } = await client.controlAppliancesByPattern(pattern, action);
+    if (controlled.length > 0) {
+      console.log(`${action}: ${controlled.join(", ")}`);
+    }
+    if (errors.length > 0) {
+      console.error(errors.join("\n"));
+    }
+    if (controlled.length === 0 && errors.length === 0) {
+      console.error(`No devices matched "${pattern}". Try 'alexa-mcp appliances' to see names.`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("switch <name> <state>")
+  .description(
+    "Turn single smart home device on/off by name. For room/pattern (e.g. 'kitchen lights'), use switch-room instead."
+  )
+  .option("-d, --device <echo>", "Echo for voice fallback when direct control fails", "")
+  .action(async (name: string, state: string, opts: { device: string }) => {
+    const s = state.toLowerCase();
+    if (s !== "on" && s !== "off") {
+      console.error("State must be 'on' or 'off'");
+      process.exit(1);
+    }
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const action = s === "on" ? "turnOn" : "turnOff";
+    const app = await client.resolveApplianceByName(name);
+    if (app?.endpointId) {
+      await client.controlAppliance(app.endpointId, action);
+      console.log(`Done: ${action} ${app.friendlyName} (direct control)`);
+      return;
+    }
+    if (!opts.device) {
+      console.error(
+        `Could not resolve "${name}". Try 'alexa-mcp appliances' to see names. Use -d <Echo> for voice fallback.`
+      );
+      process.exit(1);
+    }
     const d = await client.resolveDevice(opts.device);
     if (!d) {
       console.error(`Device not found: ${opts.device}`);
       process.exit(1);
     }
     const text = s === "on" ? `turn on ${name}` : `turn off ${name}`;
-    await client.command(
-      d.serialNumber,
-      d.deviceType,
-      d.deviceOwnerCustomerId,
-      text
-    );
-    console.log(`Sent "${text}" via ${d.accountName}`);
+    await client.command(d.serialNumber, d.deviceType, d.deviceOwnerCustomerId, text);
+    console.log(`Sent "${text}" via ${d.accountName} (voice fallback)`);
+  });
+
+program
+  .command("groups")
+  .description("List room/space groups (Kitchen, Living room, etc.)")
+  .action(async () => {
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const groups = await client.listDeviceGroups();
+    console.log(JSON.stringify(groups, null, 2));
   });
 
 program

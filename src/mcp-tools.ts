@@ -89,7 +89,8 @@ export function registerAlexaTools(
     "alexa_command",
     {
       title: "Voice Command",
-      description: "Send a voice command to Alexa (e.g. play music, set alarm, control smart home)",
+      description:
+        "Send a voice command to Alexa (e.g. play music, set alarm). For smart home control, prefer control_by_pattern or switch_by_name—voice commands can hit 'Can't control for other account' profile issues and we do not receive Alexa's response.",
       inputSchema: z.object({
         device: z.string().describe("Device name or serial number"),
         text: z.string().describe("Command text (e.g. 'turn off living room light')"),
@@ -120,7 +121,8 @@ export function registerAlexaTools(
     "alexa_list_appliances",
     {
       title: "List Smart Home Devices",
-      description: "List smart home appliances (lights, plugs, etc.)",
+      description:
+        "List smart home appliances (lights, plugs, etc.) with endpointId (amzn1.alexa.endpoint.*) and friendlyName when available. Use endpointId with control_appliance for direct control.",
       inputSchema: z.object({}),
     },
     async () => {
@@ -141,9 +143,14 @@ export function registerAlexaTools(
     "alexa_control_appliance",
     {
       title: "Control Smart Home Device",
-      description: "Turn on/off or set brightness of a smart home device",
+      description:
+        "Turn on/off or set brightness of a smart home device. Use endpointId (amzn1.alexa.endpoint.*) from list_appliances for direct GraphQL control. Opaque IDs use phoenix API.",
       inputSchema: z.object({
-        entityId: z.string().describe("Entity ID from list_appliances"),
+        entityId: z
+          .string()
+          .describe(
+            "Endpoint ID (amzn1.alexa.endpoint.*) or entity ID from list_appliances. Prefer endpointId for direct control."
+          ),
         action: z.enum(["turnOn", "turnOff", "setBrightness"]),
         brightness: z.number().min(0).max(100).optional().describe("Required for setBrightness"),
       }),
@@ -164,18 +171,138 @@ export function registerAlexaTools(
   );
 
   server.registerTool(
-    "alexa_switch_by_name",
+    "alexa_control_by_group",
     {
-      title: "Turn Smart Home Device On/Off by Name",
-      description: "Turn a smart plug or light on or off using its Alexa name (e.g. 'TV', 'Living Room Lamp'). Uses voice command; works when appliance list is empty.",
+      title: "Control Devices in Group (Room)",
+      description:
+        "Turn on/off smart home devices in an Alexa room group (e.g. 'Kitchen', 'Living room'). Uses list_device_groups—matches by group name and controls all lights in that group via direct GraphQL. Prefer over voice for 'all lights in group X'.",
       inputSchema: z.object({
-        device: z.string().describe("Echo device to send the command through (e.g. 'Lounge Echo', 'Office')"),
-        name: z.string().describe("Smart home device name as known to Alexa (e.g. 'TV', 'Landing Lamp')"),
+        groupName: z
+          .string()
+          .describe("Room group name from list_device_groups (e.g. 'Kitchen', 'Living room')"),
+        state: z.enum(["on", "off"]),
+        lightsOnly: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("If true (default), only control devices with light/lamp/bulb in name"),
+      }),
+    },
+    async ({ groupName, state, lightsOnly }) => {
+      const client = await clientFactory();
+      const action = state === "on" ? "turnOn" : "turnOff";
+      try {
+        const { controlled, errors } = await client.controlAppliancesByGroup(groupName, action, {
+          lightsOnly,
+        });
+        const lines: string[] = [];
+        if (controlled.length > 0) {
+          lines.push(`Done (group ${groupName}): ${action} → ${controlled.join(", ")}`);
+        }
+        if (errors.length > 0) {
+          lines.push(`Errors: ${errors.join("; ")}`);
+        }
+        if (controlled.length === 0 && errors.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `No lights controlled in group "${groupName}". Try list_device_groups to see groups.`,
+              },
+            ],
+          };
+        }
+        return {
+          content: [{ type: "text" as const, text: lines.join("\n") }],
+          isError: errors.length > 0 && controlled.length === 0,
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text" as const, text: String(e) }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "alexa_control_by_pattern",
+    {
+      title: "Control Devices by Pattern (Room/Name)",
+      description:
+        "Turn on/off smart home devices matching a pattern (e.g. 'kitchen lights', 'living room'). Resolves devices by friendlyName and uses direct GraphQL control. For 'all lights in group Kitchen', use control_by_group instead.",
+      inputSchema: z.object({
+        pattern: z
+          .string()
+          .describe("Pattern to match (e.g. 'kitchen lights', 'living room'). All words must appear in device name."),
         state: z.enum(["on", "off"]),
       }),
     },
-    async ({ device, name, state }) => {
+    async ({ pattern, state }) => {
       const client = await clientFactory();
+      const action = state === "on" ? "turnOn" : "turnOff";
+      const { controlled, errors } = await client.controlAppliancesByPattern(pattern, action);
+      const lines: string[] = [];
+      if (controlled.length > 0) {
+        lines.push(`Done (direct control): ${action} → ${controlled.join(", ")}`);
+      }
+      if (errors.length > 0) {
+        lines.push(`Errors: ${errors.join("; ")}`);
+      }
+      if (controlled.length === 0 && errors.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No devices matched "${pattern}". Use list_appliances to see device names.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") }],
+        isError: errors.length > 0 && controlled.length === 0,
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_switch_by_name",
+    {
+      title: "Turn Smart Home Device On/Off by Name",
+      description:
+        "Turn a single smart plug or light on or off by its exact Alexa name (e.g. 'Lounge light 2', 'TV'). For room/pattern (e.g. 'kitchen lights'), use control_by_pattern instead—it avoids profile issues.",
+      inputSchema: z.object({
+        name: z.string().describe("Smart home device name as known to Alexa (e.g. 'Lounge light 2', 'TV')"),
+        state: z.enum(["on", "off"]),
+        device: z
+          .string()
+          .optional()
+          .describe("Echo device for voice fallback only (e.g. 'Lounge Echo'); required if direct control fails"),
+      }),
+    },
+    async ({ name, state, device }) => {
+      const client = await clientFactory();
+      const action = state === "on" ? "turnOn" : "turnOff";
+      const app = await client.resolveApplianceByName(name);
+      if (app?.endpointId) {
+        await client.controlAppliance(app.endpointId, action);
+        return {
+          content: [{ type: "text" as const, text: `Done: ${action} ${app.friendlyName} (direct control)` }],
+        };
+      }
+      if (!device) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Could not resolve "${name}" to a controllable device. Try list_appliances to see names. If the device exists, provide 'device' for voice fallback.`,
+            },
+          ],
+          isError: true,
+        };
+      }
       const d = await client.resolveDevice(device);
       if (!d) {
         return {
@@ -184,14 +311,98 @@ export function registerAlexaTools(
         };
       }
       const text = state === "on" ? `turn on ${name}` : `turn off ${name}`;
-      await client.command(
-        d.serialNumber,
-        d.deviceType,
-        d.deviceOwnerCustomerId,
-        text
-      );
+      await client.command(d.serialNumber, d.deviceType, d.deviceOwnerCustomerId, text);
       return {
-        content: [{ type: "text" as const, text: `Sent "${text}" via ${d.accountName}` }],
+        content: [{ type: "text" as const, text: `Sent "${text}" via ${d.accountName} (voice fallback)` }],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_list_device_groups",
+    {
+      title: "List Device Groups",
+      description:
+        "List room/space groups (Living room, Kitchen, etc.) from the Alexa app. Returns group names, IDs, and appliance counts.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const client = await clientFactory();
+      const groups = await client.listDeviceGroups();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(groups, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_control_group",
+    {
+      title: "Control Room Group (Lights)",
+      description:
+        "Turn on/off all lights in a room/space group (e.g. Kitchen, Living room). Uses group membership from the Alexa app. By default only controls devices with 'light', 'lamp', or 'bulb' in the name.",
+      inputSchema: z.object({
+        group: z.string().describe("Group/room name (e.g. 'Kitchen', 'Living room')"),
+        state: z.enum(["on", "off"]),
+        lightsOnly: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("If true, only control lights (default). If false, control all appliances in the group."),
+      }),
+    },
+    async ({ group, state, lightsOnly }) => {
+      const client = await clientFactory();
+      const action = state === "on" ? "turnOn" : "turnOff";
+      const { controlled, errors } = await client.controlAppliancesByGroup(group, action, { lightsOnly });
+      const lines: string[] = [];
+      if (controlled.length > 0) {
+        lines.push(`Done: ${action} → ${controlled.join(", ")}`);
+      }
+      if (errors.length > 0) {
+        lines.push(`Errors: ${errors.join("; ")}`);
+      }
+      if (controlled.length === 0 && errors.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No lights found in group "${group}". Use list_device_groups and list_appliances to inspect.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") }],
+        isError: errors.length > 0 && controlled.length === 0,
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_list_audio_groups",
+    {
+      title: "List Audio Groups",
+      description:
+        "List multi-room audio groups (Downstairs, Everywhere, etc.) with Echo device members for whole-home music playback.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const client = await clientFactory();
+      const groups = await client.listAudioGroups();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(groups, null, 2),
+          },
+        ],
       };
     }
   );

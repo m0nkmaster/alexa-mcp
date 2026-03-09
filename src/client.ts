@@ -21,6 +21,8 @@ export interface Appliance {
   friendlyDescription?: string;
   applianceTypes: string[];
   isReachable: boolean;
+  /** Amazon customer ID of the account that owns this device (for profile matching) */
+  deviceOwnerCustomerId?: string;
 }
 
 export interface Routine {
@@ -29,6 +31,24 @@ export interface Routine {
   sequence: unknown;
   status?: string;
   type?: string;
+}
+
+export interface DeviceGroup {
+  name: string;
+  groupId: string;
+  type: string;
+  applianceCount: number;
+}
+
+export interface DeviceGroupWithAppliances extends DeviceGroup {
+  /** Chr entity IDs (UUIDs) for direct control; use as amzn1.alexa.endpoint.{id} for GraphQL. */
+  chrEntityIds: string[];
+}
+
+export interface AudioGroup {
+  id: string;
+  name: string;
+  members: Array<{ deviceType: string; dsn: string; speakerChannel: string }>;
 }
 
 export interface ClientOptions {
@@ -154,6 +174,7 @@ export class AlexaClient {
 
   /**
    * POST /nexus/v1/graphql (eu-api) — power/brightness control. Uses endpointId (amzn1.alexa.endpoint.*).
+   * Uses setEndpointFeatures mutation (matches Alexa mobile app); updatePowerFeatureForEndpoints can fail silently.
    */
   private async graphqlControl(
     endpointId: string,
@@ -162,7 +183,7 @@ export class AlexaClient {
   ): Promise<void> {
     if (action === "setBrightness") {
       if (brightness === undefined) throw new Error("brightness required for setBrightness");
-      await this.postApp("/nexus/v1/graphql", {
+      await this.postGraphql({
         operationName: "setBrightness",
         variables: {
           featureControlRequests: [
@@ -178,19 +199,85 @@ export class AlexaClient {
       });
       return;
     }
-    await this.postApp("/nexus/v1/graphql", {
-      operationName: "updatePowerFeatureForEndpoints",
+    const featureOp = action === "turnOn" ? "turnOn" : "turnOff";
+    await this.postGraphql({
+      operationName: "setPower",
       variables: {
-        featureControlRequests: [
-          {
-            endpointId,
-            featureName: "power",
-            featureOperationName: action === "turnOn" ? "turnOn" : "turnOff",
-          },
-        ],
+        endpointId,
+        featureOperationName: featureOp,
       },
-      query: "mutation updatePowerFeatureForEndpoints($featureControlRequests: [FeatureControlRequestInput!]!) { updatePowerFeatureForEndpoints(featureControlRequests: $featureControlRequests) }",
+      query:
+        "mutation setPower($endpointId: String, $featureOperationName: FeatureOperationName!) { setEndpointFeatures(setEndpointFeaturesInput: {featureControlRequests: [{endpointId: $endpointId, featureName: power, featureOperationName: $featureOperationName}]}) { featureControlResponses { code endpointId featureOperationName __typename } errors { code message featureOperationName __typename } __typename } }",
     });
+  }
+
+  /** POST to nexus/v1/graphql with app-like headers (matches Alexa mobile app). */
+  private async postGraphql(body: { operationName: string; variables: Record<string, unknown>; query: string }): Promise<unknown> {
+    return this.request({
+      method: "POST",
+      url: "/nexus/v1/graphql",
+      body,
+      throwOnError: true,
+      errorPrefix: "GraphQL ",
+      extraHeaders: this.graphqlHeaders(),
+    });
+  }
+
+  /** Batch GraphQL requests (array of operations); used for fetching friendly names. */
+  private async postGraphqlBatch(
+    bodies: Array<{ operationName: string; variables: Record<string, unknown>; query: string }>
+  ): Promise<unknown[]> {
+    if (bodies.length === 0) return [];
+    const result = await this.request<unknown[]>({
+      method: "POST",
+      url: "/nexus/v1/graphql",
+      body: bodies,
+      throwOnError: true,
+      errorPrefix: "GraphQL batch ",
+      extraHeaders: this.graphqlHeaders(),
+    });
+    return Array.isArray(result) ? result : [];
+  }
+
+  private graphqlHeaders(): Record<string, string> {
+    return {
+      "x-amzn-client": "AlexaApp",
+      "x-amzn-build-version": "2.2.706594",
+      "x-amzn-os-name": "ios",
+      "x-amzn-devicetype": "phone",
+      "x-amzn-devicetype-id": "A2IVLV5VM2W81",
+      "x-amzn-marketplace-id": "A1F83G8C2ARO7P",
+      "User-Agent": "Alexa/2.2.706594 CFNetwork/3860.500.111 Darwin/25.4.0",
+      Accept: "*/*",
+    };
+  }
+
+  /** GraphQL ControlPageBanner query returns friendlyNameObject.value.text. */
+  private static readonly FRIENDLY_NAME_QUERY = `query ControlPageBanner($endpointId: String!) {
+    endpoint(id: $endpointId) {
+      id
+      friendlyNameObject { value { text __typename } __typename }
+      __typename
+    }
+  }`;
+
+  /** Batch-fetch friendly names for endpoint IDs. Returns map endpointId -> friendlyName. */
+  private async fetchFriendlyNames(endpointIds: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    const amzn = endpointIds.filter((id) => id.startsWith("amzn1."));
+    if (amzn.length === 0) return map;
+    const bodies = amzn.map((endpointId) => ({
+      operationName: "ControlPageBanner",
+      variables: { endpointId },
+      query: AlexaClient.FRIENDLY_NAME_QUERY,
+    }));
+    const results = await this.postGraphqlBatch(bodies);
+    for (let i = 0; i < amzn.length; i++) {
+      const r = results[i] as { data?: { endpoint?: { friendlyNameObject?: { value?: { text?: string } } } } } | undefined;
+      const text = r?.data?.endpoint?.friendlyNameObject?.value?.text;
+      if (text) map.set(amzn[i], text);
+    }
+    return map;
   }
 
   /**
@@ -332,9 +419,16 @@ export class AlexaClient {
   }
 
   async listAppliances(): Promise<Appliance[]> {
+    const r = await this.fetchSmarthomeV2Endpoints();
+    const rawLayoutKeys = await this.fetchLayouts();
+    const layoutIds = rawLayoutKeys
+      .filter((id) => id.startsWith("amzn1.") || /^[0-9a-f-]{36}$/i.test(id))
+      .map((id) => (id.startsWith("amzn1.") ? id : `amzn1.alexa.endpoint.${id}`));
+
     const parseSmarthomeV2Response = (
       data: unknown,
-      endpointIds?: string[]
+      endpointIds?: string[],
+      friendlyNames?: Map<string, string>
     ): Appliance[] => {
       const d = data as {
         endpoints?: Array<{
@@ -351,25 +445,113 @@ export class AlexaClient {
         const serial = ep.serialNumber ?? ep.identifier?.deviceSerialNumber ?? "";
         const deviceType = ep.deviceType ?? ep.identifier?.deviceType ?? "";
         const endpointId = endpointIds && i < endpointIds.length ? endpointIds[i] : undefined;
+        const friendlyName =
+          (endpointId && friendlyNames?.get(endpointId)) ?? serial;
         return {
           entityId: endpointId ?? serial,
           endpointId,
           applianceId: ep.deviceAccountId ?? serial,
-          friendlyName: serial,
+          friendlyName,
           applianceTypes: deviceType ? [deviceType] : [],
           isReachable: true,
+          deviceOwnerCustomerId: ep.deviceOwnerCustomerId,
         };
       });
     };
 
-    const r = await this.fetchSmarthomeV2Endpoints();
-    if (r.status !== 200) return [];
     const endpoints = (r.data as { endpoints?: unknown[] })?.endpoints ?? [];
-    const layoutIds = await this.fetchLayouts();
     const useLayoutIds =
-      layoutIds.length === endpoints.length &&
-      layoutIds.every((id) => id.startsWith("amzn1."));
-    return parseSmarthomeV2Response(r.data, useLayoutIds ? layoutIds : undefined);
+      layoutIds.length === endpoints.length && layoutIds.length > 0;
+
+    if (r.status !== 200) {
+      if (layoutIds.length === 0) return [];
+      const friendlyNames = await this.fetchFriendlyNames(layoutIds);
+      return layoutIds.map((endpointId) => ({
+        entityId: endpointId,
+        endpointId,
+        applianceId: endpointId,
+        friendlyName: friendlyNames.get(endpointId) ?? endpointId,
+        applianceTypes: [] as string[],
+        isReachable: true,
+      }));
+    }
+
+    let appliances: Appliance[];
+    if (useLayoutIds) {
+      const friendlyNames = await this.fetchFriendlyNames(layoutIds);
+      appliances = parseSmarthomeV2Response(r.data, layoutIds, friendlyNames);
+    } else if (layoutIds.length > 0) {
+      const friendlyNames = await this.fetchFriendlyNames(layoutIds);
+      appliances = layoutIds.map((endpointId) => ({
+        entityId: endpointId,
+        endpointId,
+        applianceId: endpointId,
+        friendlyName: friendlyNames.get(endpointId) ?? endpointId,
+        applianceTypes: [] as string[],
+        isReachable: true,
+      }));
+    } else {
+      appliances = parseSmarthomeV2Response(r.data);
+    }
+    return appliances;
+  }
+
+  /** Resolve smart home device by friendly name (case-insensitive partial match). Prefer direct GraphQL control. */
+  async resolveApplianceByName(name: string): Promise<Appliance | null> {
+    const appliances = await this.listAppliances();
+    const q = name.toLowerCase().trim();
+    const match = appliances.find((a) => {
+      const fn = a.friendlyName?.toLowerCase() ?? "";
+      return fn.includes(q) || q.includes(fn);
+    });
+    return match ?? null;
+  }
+
+  /**
+   * Resolve smart home devices by pattern (e.g. "kitchen lights").
+   * Matches appliances whose friendlyName contains all space-separated words (case-insensitive).
+   * "lights" also matches "light" and vice versa. Returns all matches for room/group control.
+   */
+  async resolveAppliancesByPattern(pattern: string): Promise<Appliance[]> {
+    const appliances = await this.listAppliances();
+    const words = pattern.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+    const matchWord = (fn: string, w: string): boolean => {
+      if (fn.includes(w)) return true;
+      if (w.endsWith("s") && fn.includes(w.slice(0, -1))) return true; // "lights" → "light"
+      if (!w.endsWith("s") && fn.includes(w + "s")) return true; // "light" → "lights"
+      return false;
+    };
+    return appliances.filter((a) => {
+      const fn = a.friendlyName?.toLowerCase() ?? "";
+      return words.every((w) => matchWord(fn, w));
+    });
+  }
+
+  /**
+   * Control all appliances matching a pattern (e.g. "kitchen lights").
+   * Uses direct GraphQL/phoenix control—avoids profile/account issues from voice commands.
+   * Returns names of controlled devices and any errors.
+   */
+  async controlAppliancesByPattern(
+    pattern: string,
+    action: "turnOn" | "turnOff"
+  ): Promise<{ controlled: string[]; errors: string[] }> {
+    const appliances = await this.resolveAppliancesByPattern(pattern);
+    const id = (a: Appliance) => a.endpointId ?? a.entityId;
+    const targets = appliances
+      .map((a) => ({ eid: id(a), name: a.friendlyName ?? a.entityId }))
+      .filter((t): t is { eid: string; name: string } => !!t.eid);
+    const errors = appliances
+      .filter((a) => !id(a))
+      .map((a) => `${a.friendlyName ?? "?"}: no endpointId/entityId`);
+    const results = await Promise.allSettled(targets.map((t) => this.controlAppliance(t.eid, action)));
+    const controlled: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") controlled.push(targets[i].name);
+      else errors.push(`${targets[i].name}: ${String(r.reason)}`);
+    });
+    return { controlled, errors };
   }
 
   async controlAppliance(
@@ -437,6 +619,101 @@ export class AlexaClient {
     } catch {
       return null;
     }
+  }
+
+  /** GET /api/phoenix/group — room/space groups (Living room, Kitchen, etc.) with appliance membership. */
+  async listDeviceGroups(): Promise<DeviceGroup[]> {
+    const groups = await this.listDeviceGroupsWithAppliances();
+    return groups.map(({ chrEntityIds, ...g }) => ({ ...g, applianceCount: chrEntityIds.length }));
+  }
+
+  /** Like listDeviceGroups but includes chrEntityIds for each group (from chrEndpoints). */
+  async listDeviceGroupsWithAppliances(): Promise<DeviceGroupWithAppliances[]> {
+    const data = (await this.getApp("/api/phoenix/group")) as {
+      applianceGroups?: Array<{
+        name?: string;
+        groupId?: string;
+        type?: string;
+        chrEndpoints?: Array<{ entityId?: string }>;
+      }>;
+    };
+    const groups = data?.applianceGroups ?? [];
+    return groups.map((g) => {
+      const chrEntityIds = (g.chrEndpoints ?? [])
+        .map((e) => e.entityId)
+        .filter((id): id is string => !!id);
+      return {
+        name: g.name ?? "",
+        groupId: g.groupId ?? "",
+        type: g.type ?? "SPACE",
+        applianceCount: chrEntityIds.length,
+        chrEntityIds,
+      };
+    });
+  }
+
+  /**
+   * Control appliances in a room/space group by name (e.g. "Kitchen").
+   * Uses chrEntityIds from phoenix group → amzn1.alexa.endpoint.{id} for GraphQL.
+   * lightsOnly (default true) filters to devices with light/lamp/bulb in friendlyName when available.
+   */
+  async controlAppliancesByGroup(
+    groupName: string,
+    action: "turnOn" | "turnOff",
+    options?: { lightsOnly?: boolean }
+  ): Promise<{ controlled: string[]; errors: string[] }> {
+    const groups = await this.listDeviceGroupsWithAppliances();
+    const q = groupName.toLowerCase().trim();
+    const group = groups.find((g) => g.name.toLowerCase() === q || g.name.toLowerCase().includes(q));
+    if (!group) {
+      throw new Error(`Group not found: "${groupName}". Use list_device_groups to see groups.`);
+    }
+    const appliances = await this.listAppliances();
+    const uuidToAppliance = new Map<string, Appliance>();
+    for (const a of appliances) {
+      const eid = a.endpointId ?? a.entityId;
+      if (eid) {
+        const uuid = eid.startsWith("amzn1.alexa.endpoint.") ? eid.replace("amzn1.alexa.endpoint.", "") : eid;
+        uuidToAppliance.set(uuid.toLowerCase(), a);
+      }
+    }
+    const lightsOnly = options?.lightsOnly ?? true;
+    const lightRe = /light|lamp|bulb/i;
+    const targets: { endpointId: string; name: string }[] = [];
+    for (const chrId of group.chrEntityIds) {
+      const app = uuidToAppliance.get(chrId.toLowerCase());
+      const name = app?.friendlyName ?? chrId;
+      if (lightsOnly && app && !lightRe.test(name)) continue; // skip non-lights when we have friendlyName
+      const endpointId = chrId.includes(".") ? chrId : `amzn1.alexa.endpoint.${chrId}`;
+      targets.push({ endpointId, name });
+    }
+    const results = await Promise.allSettled(
+      targets.map((t) => this.controlAppliance(t.endpointId, action))
+    );
+    const controlled: string[] = [];
+    const errors: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") controlled.push(targets[i].name);
+      else errors.push(`${targets[i].name}: ${String(r.reason)}`);
+    });
+    return { controlled, errors };
+  }
+
+  /** GET /api/wholeHomeAudio/v1/groups — multi-room audio speaker groups (Downstairs, Everywhere, etc.). */
+  async listAudioGroups(): Promise<AudioGroup[]> {
+    const data = (await this.getApp("/api/wholeHomeAudio/v1/groups")) as {
+      groups?: Array<{ id?: string; name?: string; members?: Array<{ deviceType?: string; dsn?: string; speakerChannel?: string }> }>;
+    };
+    const groups = data?.groups ?? [];
+    return groups.map((g) => ({
+      id: g.id ?? "",
+      name: g.name ?? "",
+      members: (g.members ?? []).map((m) => ({
+        deviceType: m.deviceType ?? "",
+        dsn: m.dsn ?? "",
+        speakerChannel: m.speakerChannel ?? "all",
+      })),
+    }));
   }
 
   async listRoutines(): Promise<Routine[]> {
