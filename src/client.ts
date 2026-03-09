@@ -55,131 +55,82 @@ export class AlexaClient {
     return this.creds;
   }
 
-  /** GET from app API host (eu-api / na-api). Returns {} on failure (non-throwing). */
-  private async getFromAppApi(url: string): Promise<unknown> {
+  /** Low-level app API request (eu-api / na-api). */
+  private async request<T = unknown>(opts: {
+    method: "GET" | "POST" | "PUT";
+    url: string;
+    body?: unknown;
+    throwOnError: boolean;
+    errorPrefix?: string;
+    extraHeaders?: Record<string, string>;
+  }): Promise<T> {
     const config = getConfig(this.domain);
     const creds = await this.ensureAuth();
-    const fullUrl = `${config.appApiBase.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
-    const res = await fetch(fullUrl, {
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) return {};
-    const text = await res.text();
-    if (!text.trim()) return {};
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      return {};
+    const fullUrl = `${config.appApiBase.replace(/\/$/, "")}${opts.url.startsWith("/") ? opts.url : "/" + opts.url}`;
+    const headers: Record<string, string> = {
+      Cookie: creds.cookies,
+      csrf: creds.csrf,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...opts.extraHeaders,
+    };
+    const init: RequestInit = {
+      method: opts.method,
+      headers,
+    };
+    if (opts.body !== undefined && opts.method !== "GET") {
+      init.body = JSON.stringify(opts.body);
     }
+    const res = await fetch(fullUrl, init as import("undici").RequestInit);
+    const text = await res.text();
+    if (!res.ok) {
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] ${opts.method} ${fullUrl} → ${res.status}: ${text.slice(0, 200)}`);
+      }
+      if (opts.throwOnError) {
+        const prefix = opts.errorPrefix ?? "API error ";
+        throw new Error(`${prefix}${res.status}: ${text.slice(0, 200)}`);
+      }
+      return {} as T;
+    }
+    if (!text.trim()) return {} as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return {} as T;
+    }
+  }
+
+  /** GET from app API. Returns {} on failure (non-throwing). */
+  private async getFromAppApi(url: string): Promise<unknown> {
+    return this.request({ method: "GET", url, throwOnError: false });
   }
 
   /** GET app endpoint. Throws on failure. */
   private async getApp(url: string): Promise<unknown> {
-    const config = getConfig(this.domain);
-    const creds = await this.ensureAuth();
-    const baseUrl = config.appApiBase;
-    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
-    const res = await fetch(fullUrl, {
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return {};
-    return JSON.parse(text) as unknown;
+    return this.request({ method: "GET", url, throwOnError: true });
   }
 
   /** POST app endpoint. Throws on failure. */
   private async postApp(url: string, body: unknown): Promise<unknown> {
-    const config = getConfig(this.domain);
-    const creds = await this.ensureAuth();
-    const baseUrl = config.appApiBase;
-    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
-    const res = await fetch(fullUrl, {
-      method: "POST",
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return {};
-    return JSON.parse(text) as unknown;
+    return this.request({ method: "POST", url, body, throwOnError: true });
   }
 
   /** PUT app endpoint. Throws on failure. */
   private async putApp(url: string, body: unknown): Promise<unknown> {
-    const config = getConfig(this.domain);
-    const creds = await this.ensureAuth();
-    const baseUrl = config.appApiBase;
-    const fullUrl = `${baseUrl.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
-    const res = await fetch(fullUrl, {
-      method: "PUT",
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return {};
-    return JSON.parse(text) as unknown;
+    return this.request({ method: "PUT", url, body, throwOnError: true });
   }
 
-  /** POST to app API (e.g. control-media-session). */
+  /** POST to app API (e.g. control-media-session). Throws on failure. */
   private async postFromAppApi(url: string, body: unknown): Promise<{ ok: boolean; data?: unknown }> {
-    const config = getConfig(this.domain);
-    const creds = await this.ensureAuth();
-    const fullUrl = `${config.appApiBase.replace(/\/$/, "")}${url.startsWith("/") ? url : "/" + url}`;
-    const res = await fetch(fullUrl, {
+    const data = await this.request<unknown>({
       method: "POST",
-      headers: {
-        Cookie: creds.cookies,
-        csrf: creds.csrf,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
+      url,
+      body,
+      throwOnError: true,
+      errorPrefix: "Media API error ",
     });
-    if (!res.ok) {
-      const text = await res.text();
-      if (process.env.ALEXA_DEBUG) {
-        console.error(`[alexa-mcp] POST ${fullUrl} → ${res.status}: ${text.slice(0, 200)}`);
-      }
-      throw new Error(`Media API error ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const text = await res.text();
-    if (!text.trim()) return { ok: true };
-    try {
-      return { ok: true, data: JSON.parse(text) as unknown };
-    } catch {
-      return { ok: true };
-    }
+    return { ok: true, data };
   }
 
   /**

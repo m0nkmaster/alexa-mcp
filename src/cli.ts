@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
-import { loadRefreshToken } from "./auth.js";
 import { AlexaClient } from "./client.js";
 import {
   loadConfig,
@@ -12,10 +14,24 @@ import { runBrowserAuth } from "./auth-flow.js";
 
 const program = new Command();
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, "..", "package.json"), "utf-8")
+) as { version?: string };
+
+function getAuthConfig(): { refreshToken: string; domain: "amazon.co.uk" | "amazon.com" | "amazon.de" } | null {
+  const cfg = loadConfig();
+  if (!cfg?.refreshToken) return null;
+  return {
+    refreshToken: cfg.refreshToken,
+    domain: cfg.domain as "amazon.co.uk" | "amazon.com" | "amazon.de",
+  };
+}
+
 program
   .name("alexa-mcp")
   .description("Alexa device and smart home control CLI")
-  .version("0.1.0");
+  .version(pkg.version ?? "0.1.0");
 
 const authCmd = program
   .command("auth")
@@ -109,12 +125,12 @@ program
   .command("devices")
   .description("List Echo devices")
   .action(async () => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token. Set ALEXA_REFRESH_TOKEN or run 'alexa-mcp auth'.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const devices = await client.getDevices();
     console.log(JSON.stringify(devices, null, 2));
   });
@@ -128,12 +144,12 @@ program
       console.error("--device is required");
       process.exit(1);
     }
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const d = await client.resolveDevice(opts.device);
     if (!d) {
       console.error(`Device not found: ${opts.device}`);
@@ -152,12 +168,12 @@ program
   .command("announce <text>")
   .description("Announce to all devices")
   .action(async (text: string) => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const devices = await client.getDevices();
     if (devices.length === 0) {
       console.error("No devices found");
@@ -176,12 +192,12 @@ program
       console.error("--device is required");
       process.exit(1);
     }
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const d = await client.resolveDevice(opts.device);
     if (!d) {
       console.error(`Device not found: ${opts.device}`);
@@ -210,12 +226,12 @@ program
       console.error("State must be 'on' or 'off'");
       process.exit(1);
     }
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const d = await client.resolveDevice(opts.device);
     if (!d) {
       console.error(`Device not found: ${opts.device}`);
@@ -235,12 +251,12 @@ program
   .command("appliances")
   .description("List smart home devices")
   .action(async () => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const appliances = await client.listAppliances();
     console.log(JSON.stringify(appliances, null, 2));
   });
@@ -250,8 +266,8 @@ program
   .description("Control smart home device (turnOn, turnOff, setBrightness)")
   .option("-b, --brightness <0-100>", "Brightness for setBrightness", (v) => parseInt(v, 10))
   .action(async (entityId: string, action: string, opts: { brightness?: number }) => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
@@ -264,7 +280,7 @@ program
       console.error("--brightness required for setBrightness");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     await client.controlAppliance(
       entityId,
       action as "turnOn" | "turnOff" | "setBrightness",
@@ -277,12 +293,12 @@ program
   .command("routines")
   .description("List routines")
   .action(async () => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const routines = await client.listRoutines();
     console.log(JSON.stringify(routines, null, 2));
   });
@@ -291,12 +307,12 @@ program
   .command("run <automationId>")
   .description("Run a routine by automation ID")
   .action(async (automationId: string) => {
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const routines = await client.listRoutines();
     const r = routines.find((x) => x.automationId === automationId);
     if (!r) {
@@ -317,12 +333,12 @@ program
       console.error("--device is required");
       process.exit(1);
     }
-    const token = loadRefreshToken();
-    if (!token) {
+    const cfg = getAuthConfig();
+    if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: token });
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const d = await client.resolveDevice(opts.device);
     if (!d) {
       console.error(`Device not found: ${opts.device}`);
@@ -349,12 +365,12 @@ mediaCmd.action(async (command: string, opts: { device: string }) => {
     console.error(`Command must be one of: ${mediaCommands.join(", ")}`);
     process.exit(1);
   }
-  const token = loadRefreshToken();
-  if (!token) {
+  const cfg = getAuthConfig();
+  if (!cfg) {
     console.error("No refresh token.");
     process.exit(1);
   }
-  const client = new AlexaClient({ refreshToken: token });
+  const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
   const d = await client.resolveDevice(opts.device);
   if (!d) {
     console.error(`Device not found: ${opts.device}`);
