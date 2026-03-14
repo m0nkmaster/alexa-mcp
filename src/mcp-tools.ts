@@ -515,7 +515,8 @@ export function registerAlexaTools(
     "alexa_now_playing",
     {
       title: "Now Playing",
-      description: "Get now-playing state for an Echo device (includes taskSessionId for transport control)",
+      description:
+        "Get now-playing state for an Echo device. Returns track title, artist, album, playback state, volume, and taskSessionId for transport control.",
       inputSchema: z.object({
         device: z.string().describe("Device name or serial number"),
       }),
@@ -535,6 +536,158 @@ export function registerAlexaTools(
           {
             type: "text" as const,
             text: JSON.stringify({ device: d.accountName, ...state }, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_get_volume",
+    {
+      title: "Get Volume",
+      description: "Get the current speaker volume (0–100) for an Echo device.",
+      inputSchema: z.object({
+        device: z.string().describe("Device name or serial number"),
+      }),
+    },
+    async ({ device }) => {
+      const client = await clientFactory();
+      const d = await client.resolveDevice(device);
+      if (!d) {
+        return {
+          content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+          isError: true,
+        };
+      }
+      const vol = await client.getVolume(d.deviceType, d.serialNumber);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ device: d.accountName, ...vol }, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_set_volume",
+    {
+      title: "Set Volume",
+      description: "Set the speaker volume (0–100) on an Echo device.",
+      inputSchema: z.object({
+        device: z.string().describe("Device name or serial number"),
+        volume: z.number().int().min(0).max(100).describe("Volume level 0–100"),
+      }),
+    },
+    async ({ device, volume }) => {
+      const client = await clientFactory();
+      const d = await client.resolveDevice(device);
+      if (!d) {
+        return {
+          content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+          isError: true,
+        };
+      }
+      await client.setVolume(d.deviceType, d.serialNumber, volume);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Volume set to ${volume} on ${d.accountName}`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_set_brightness_by_name",
+    {
+      title: "Set Light Brightness by Name",
+      description:
+        "Set the brightness of a smart home light by its friendly name. Resolves device by name then sends setBrightness via GraphQL. For endpointId, use control_appliance instead.",
+      inputSchema: z.object({
+        name: z.string().describe("Light device friendly name (e.g. 'Lounge lamp', 'Bedroom light')"),
+        brightness: z.number().int().min(0).max(100).describe("Brightness level 0–100"),
+      }),
+    },
+    async ({ name, brightness }) => {
+      const client = await clientFactory();
+      const app = await client.resolveApplianceByName(name);
+      if (!app) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Device not found: "${name}". Use list_appliances to see available device names.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const eid = app.endpointId ?? app.entityId;
+      if (!eid) {
+        return {
+          content: [{ type: "text" as const, text: `No controllable ID for "${name}"` }],
+          isError: true,
+        };
+      }
+      await client.controlAppliance(eid, "setBrightness", brightness);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Brightness set to ${brightness}% on ${app.friendlyName}`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_get_brightness_by_name",
+    {
+      title: "Get Light Brightness by Name",
+      description:
+        "Get the current brightness and power state of a smart home light by its friendly name. Queries GraphQL for live state.",
+      inputSchema: z.object({
+        name: z.string().describe("Light device friendly name (e.g. 'Lounge lamp', 'Bedroom light')"),
+      }),
+    },
+    async ({ name }) => {
+      const client = await clientFactory();
+      const app = await client.resolveApplianceByName(name);
+      if (!app) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Device not found: "${name}". Use list_appliances to see available device names.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const eid = app.endpointId ?? app.entityId;
+      if (!eid) {
+        return {
+          content: [{ type: "text" as const, text: `No endpoint ID for "${name}"` }],
+          isError: true,
+        };
+      }
+      const state = await client.getBrightnessState(eid);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              { device: app.friendlyName, endpointId: eid, ...state },
+              null,
+              2
+            ),
           },
         ],
       };

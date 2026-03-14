@@ -32,11 +32,11 @@ describe("auth", () => {
             },
           },
         }),
-      } as Response)
+      } as any)
       .mockResolvedValueOnce({
         ok: true,
         headers: new Headers({ "set-cookie": "csrf=abc123; Path=/" }),
-      } as Response);
+      } as any);
 
     const creds = await authenticate({
       refreshToken: "Atnr|test",
@@ -54,7 +54,7 @@ describe("auth", () => {
       ok: false,
       status: 401,
       text: async () => "Unauthorized",
-    } as Response);
+    } as any);
 
     await expect(
       authenticate({ refreshToken: "bad", domain: "amazon.co.uk" })
