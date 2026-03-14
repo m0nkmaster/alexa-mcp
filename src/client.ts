@@ -766,7 +766,23 @@ export class AlexaClient {
     });
     const data = (await this.getFromAppApi(
       `/api/np/player?${q.toString()}`
-    )) as { taskSessionId?: string; playerInfo?: { taskSessionId?: string }; [key: string]: unknown };
+    )) as {
+      taskSessionId?: string;
+      playerInfo?: {
+        taskSessionId?: string;
+        state?: string;
+        mainArt?: { url?: string };
+        infoText?: {
+          title?: string;
+          subText1?: string;
+          subText2?: string;
+        };
+        miniArt?: { url?: string };
+        volume?: { volume?: number; muted?: boolean };
+        progress?: { mediaProgress?: number; mediaLength?: number };
+      };
+      [key: string]: unknown;
+    };
 
     // taskSessionId may be at root or nested inside playerInfo
     let taskSessionId: string | undefined =
@@ -781,7 +797,93 @@ export class AlexaClient {
       taskSessionId = sessions?.mediaSessionList?.[0]?.taskSessionId;
     }
 
-    return { ...(data ?? {}), ...(taskSessionId ? { taskSessionId } : {}) };
+    // Extract friendly now-playing fields from playerInfo
+    const pi = data?.playerInfo;
+    const nowPlaying = pi
+      ? {
+          state: pi.state,
+          title: pi.infoText?.title,
+          artist: pi.infoText?.subText1,
+          album: pi.infoText?.subText2,
+          volume: pi.volume?.volume,
+          muted: pi.volume?.muted,
+          artUrl: pi.mainArt?.url ?? pi.miniArt?.url,
+          mediaProgress: pi.progress?.mediaProgress,
+          mediaLength: pi.progress?.mediaLength,
+        }
+      : undefined;
+
+    return {
+      ...(data ?? {}),
+      ...(taskSessionId ? { taskSessionId } : {}),
+      ...(nowPlaying ? { nowPlaying } : {}),
+    };
+  }
+
+  /**
+   * Get brightness state for a smart home endpoint via GraphQL.
+   * Returns brightness (0–100) and power state when available.
+   */
+  async getBrightnessState(endpointId: string): Promise<{ brightness?: number; powerState?: string }> {
+    try {
+      const result = (await this.postGraphql({
+        operationName: "GetBrightnessState",
+        variables: { endpointId },
+        query: `query GetBrightnessState($endpointId: String!) {
+          endpoint(id: $endpointId) {
+            id
+            features {
+              name
+              ... on BrightnessFeature { brightness { value } }
+              ... on PowerFeature { powerState { value } }
+            }
+          }
+        }`,
+      })) as {
+        data?: {
+          endpoint?: {
+            features?: Array<{
+              name?: string;
+              brightness?: { value?: number };
+              powerState?: { value?: string };
+            }>;
+          };
+        };
+      };
+      const features = result?.data?.endpoint?.features ?? [];
+      let brightness: number | undefined;
+      let powerState: string | undefined;
+      for (const f of features) {
+        if (f.brightness?.value !== undefined) brightness = f.brightness.value;
+        if (f.powerState?.value !== undefined) powerState = f.powerState.value;
+      }
+      return { brightness, powerState };
+    } catch {
+      return {};
+    }
+  }
+
+  /** Get volume for a device (0–100). */
+  async getVolume(
+    deviceType: string,
+    deviceSerialNumber: string
+  ): Promise<{ volume: number; muted?: boolean }> {
+    const data = (await this.getFromAppApi(
+      `/api/devices/${encodeURIComponent(deviceType)}/${encodeURIComponent(deviceSerialNumber)}/audio/v2/volume`
+    )) as { volume?: number; muted?: boolean };
+    return { volume: data?.volume ?? 0, muted: data?.muted };
+  }
+
+  /** Set volume for a device (0–100). */
+  async setVolume(
+    deviceType: string,
+    deviceSerialNumber: string,
+    volume: number
+  ): Promise<void> {
+    await this.putApp(
+      `/api/devices/${encodeURIComponent(deviceType)}/${encodeURIComponent(deviceSerialNumber)}/audio/v2/speakerVolume`,
+      { volume }
+    );
   }
 
   /** Media: list active media sessions. */

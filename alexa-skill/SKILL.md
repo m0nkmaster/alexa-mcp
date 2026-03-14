@@ -141,6 +141,18 @@ If `configured: false` or `valid: false`, re-authenticate.
 **By endpoint ID:** `alexa_control_appliance` with `{ "entityId": "amzn1.alexa.endpoint.*", "action": "turnOn" }`
 - For brightness: `{ "entityId": "...", "action": "setBrightness", "brightness": 50 }`
 
+**Brightness by name:** `alexa_set_brightness_by_name` with `{ "name": "Lounge lamp", "brightness": 50 }`
+- Resolves device by friendly name; no endpointId needed
+
+**Get brightness by name:** `alexa_get_brightness_by_name` with `{ "name": "Lounge lamp" }`
+- Returns `{ "brightness": 50, "powerState": "ON" }`
+
+**CLI:**
+```bash
+alexa-mcp brightness --name "Lounge lamp"          # Get current brightness
+alexa-mcp brightness 50 --name "Lounge lamp"       # Set brightness to 50%
+```
+
 ---
 
 ## 8. Routines
@@ -156,7 +168,7 @@ If `configured: false` or `valid: false`, re-authenticate.
 **Start playback first:** `alexa_command` with `{ "device": "Lounge", "text": "play jazz" }`
 
 **Get state:** `alexa_now_playing` with `{ "device": "Lounge" }`
-- Returns `taskSessionId` if playing
+- Returns `taskSessionId` if playing, plus `nowPlaying` with `title`, `artist`, `album`, `state`, `volume`
 
 **Transport:** `alexa_media_control` with `{ "device": "Lounge", "command": "pause" }`
 - Commands: `play`, `pause`, `resume`, `stop`, `next`, `previous`
@@ -164,7 +176,23 @@ If `configured: false` or `valid: false`, re-authenticate.
 
 ---
 
-## 10. Typical Workflows
+## 10. Volume Control
+
+**Get volume:** `alexa_get_volume` with `{ "device": "Kitchen" }`
+- Returns `{ "volume": 50, "muted": false }`
+
+**Set volume:** `alexa_set_volume` with `{ "device": "Kitchen", "volume": 50 }`
+- Volume range: 0–100
+
+**CLI:**
+```bash
+alexa-mcp volume -d Kitchen          # Get current volume
+alexa-mcp volume 50 -d Kitchen       # Set volume to 50
+```
+
+---
+
+## 11. Typical Workflows
 
 **Smart home:**
 1. `alexa_auth_status` → verify auth
@@ -179,7 +207,7 @@ If `configured: false` or `valid: false`, re-authenticate.
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 **Auth failures:**
 - Verify token format: `echo "$ALEXA_REFRESH_TOKEN" | grep "^Atnr|"`
@@ -195,7 +223,7 @@ If `configured: false` or `valid: false`, re-authenticate.
 
 ---
 
-## 12. Account Mismatch
+## 13. Account Mismatch
 
 If control fails with "wrong account":
 - Run `alexa-mcp auth status --verify` to see account ID
@@ -204,11 +232,11 @@ If control fails with "wrong account":
 
 ---
 
-## 13. Limitations
+## 14. Limitations
 
 - `alexa_command`: No response returned (Alexa speaks on device)
 - Media control: Requires active playback first
 - `alexa_control_by_group`: Defaults to lights only (use `"lightsOnly": false` for all)
-- Not yet available: timers, alarms, volume, DND, reminders
+- Not yet available: timers, alarms, DND, reminders
 - US accounts: Reduced media transport reliability vs EU/UK
 - Rate limiting: Implement exponential backoff for automation

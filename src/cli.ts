@@ -427,7 +427,7 @@ program
 
 program
   .command("now-playing")
-  .description("Show now-playing state for a device (EU/UK)")
+  .description("Show now-playing state for a device (track, artist, album, state, volume)")
   .option("-d, --device <name>", "Device name or serial (required)", "")
   .action(async (opts: { device: string }) => {
     if (!opts.device) {
@@ -447,6 +447,81 @@ program
     }
     const state = await client.getNowPlaying(d.serialNumber, d.deviceType);
     console.log(JSON.stringify({ device: d.accountName, ...state }, null, 2));
+  });
+
+program
+  .command("volume")
+  .description("Get or set speaker volume (0–100) on an Echo device")
+  .argument("[level]", "Volume level 0–100 (omit to get current volume)", "")
+  .option("-d, --device <name>", "Device name or serial (required)", "")
+  .action(async (level: string, opts: { device: string }) => {
+    if (!opts.device) {
+      console.error("--device is required");
+      process.exit(1);
+    }
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const d = await client.resolveDevice(opts.device);
+    if (!d) {
+      console.error(`Device not found: ${opts.device}`);
+      process.exit(1);
+    }
+    if (!level) {
+      const vol = await client.getVolume(d.deviceType, d.serialNumber);
+      console.log(JSON.stringify({ device: d.accountName, ...vol }, null, 2));
+      return;
+    }
+    const v = parseInt(level, 10);
+    if (isNaN(v) || v < 0 || v > 100) {
+      console.error("Volume must be a number between 0 and 100");
+      process.exit(1);
+    }
+    await client.setVolume(d.deviceType, d.serialNumber, v);
+    console.log(`Volume set to ${v} on ${d.accountName}`);
+  });
+
+program
+  .command("brightness")
+  .description("Get or set brightness (0–100) on a smart home light by name")
+  .argument("[level]", "Brightness level 0–100 (omit to get current brightness)", "")
+  .option("-n, --name <name>", "Light device friendly name (required)", "")
+  .action(async (level: string, opts: { name: string }) => {
+    if (!opts.name) {
+      console.error("--name is required (e.g. --name 'Lounge lamp')");
+      process.exit(1);
+    }
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const app = await client.resolveApplianceByName(opts.name);
+    if (!app) {
+      console.error(`Device not found: "${opts.name}". Try 'alexa-mcp appliances' to see names.`);
+      process.exit(1);
+    }
+    const eid = app.endpointId ?? app.entityId;
+    if (!eid) {
+      console.error(`No controllable endpoint for "${opts.name}"`);
+      process.exit(1);
+    }
+    if (!level) {
+      const state = await client.getBrightnessState(eid);
+      console.log(JSON.stringify({ device: app.friendlyName, endpointId: eid, ...state }, null, 2));
+      return;
+    }
+    const b = parseInt(level, 10);
+    if (isNaN(b) || b < 0 || b > 100) {
+      console.error("Brightness must be a number between 0 and 100");
+      process.exit(1);
+    }
+    await client.controlAppliance(eid, "setBrightness", b);
+    console.log(`Brightness set to ${b}% on ${app.friendlyName}`);
   });
 
 const mediaCmd = program

@@ -129,6 +129,71 @@ describe("AlexaClient", () => {
     expect(appliances).toHaveLength(0);
   });
 
+  it("getVolume returns volume from API", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ volume: 50, muted: false }));
+
+    const vol = await client.getVolume("A1RABVCI4QCIKC", "G090XG123");
+
+    expect(vol.volume).toBe(50);
+    expect(vol.muted).toBe(false);
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/devices/A1RABVCI4QCIKC/G090XG123/audio/v2/volume"),
+      expect.any(Object)
+    );
+  });
+
+  it("getVolume returns 0 when API returns empty", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({}));
+
+    const vol = await client.getVolume("A1RABVCI4QCIKC", "G090XG123");
+
+    expect(vol.volume).toBe(0);
+  });
+
+  it("setVolume calls PUT with correct body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({}));
+
+    await client.setVolume("A1RABVCI4QCIKC", "G090XG123", 75);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/devices/A1RABVCI4QCIKC/G090XG123/audio/v2/speakerVolume"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ volume: 75 }),
+      })
+    );
+  });
+
+  it("getBrightnessState returns brightness from GraphQL", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes({
+        data: {
+          endpoint: {
+            id: "amzn1.alexa.endpoint.abc123",
+            features: [
+              { name: "brightness", brightness: { value: 75 } },
+              { name: "power", powerState: { value: "ON" } },
+            ],
+          },
+        },
+      })
+    );
+
+    const state = await client.getBrightnessState("amzn1.alexa.endpoint.abc123");
+
+    expect(state.brightness).toBe(75);
+    expect(state.powerState).toBe("ON");
+  });
+
+  it("getBrightnessState returns empty object on API error", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ errors: ["not found"] }, false));
+
+    const state = await client.getBrightnessState("amzn1.alexa.endpoint.unknown");
+
+    expect(state.brightness).toBeUndefined();
+    expect(state.powerState).toBeUndefined();
+  });
+
   it("listAppliances returns appliances from app API (US)", async () => {
     const usClient = new AlexaClient({ refreshToken: "Atnr|test", domain: "amazon.com" });
     vi.mocked(fetch).mockResolvedValueOnce(
