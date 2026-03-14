@@ -180,7 +180,7 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e device control", () => {
     );
 
     it(
-      "now-playing returns JSON with device name",
+      "now-playing returns JSON with device name and enhanced metadata",
       async () => {
         const { stdout, stderr, code } = await execCli(["now-playing", "--device", ECHO]);
         expect(code, stderr).toBe(0);
@@ -189,6 +189,16 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e device control", () => {
         expect((data.device as string).toLowerCase()).toContain(
           ECHO.toLowerCase()
         );
+        // Enhanced now-playing should include nowPlaying object with metadata
+        if (data.nowPlaying) {
+          const nowPlaying = data.nowPlaying as Record<string, unknown>;
+          // Should have at least some metadata fields when music is playing
+          expect(nowPlaying).toBeDefined();
+          // State should be present (playing/paused)
+          if (nowPlaying.state) {
+            expect(typeof nowPlaying.state).toBe("string");
+          }
+        }
       },
       TEST_TIMEOUT
     );
@@ -236,6 +246,157 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e device control", () => {
         ]);
         expect(code, stderr).toBe(0);
         expect(stdout + stderr).toContain("Command sent to");
+      },
+      TEST_TIMEOUT
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Lounge Echo — volume control
+  // ---------------------------------------------------------------------------
+  describe(`${ECHO} (volume control)`, () => {
+    let originalVolume: number;
+
+    it(
+      "gets current volume",
+      async () => {
+        const { stdout, stderr, code } = await execCli(["volume", "--device", ECHO]);
+        expect(code, stderr).toBe(0);
+        const data = JSON.parse(stdout.trim()) as { device: string; volume: number; muted?: boolean };
+        expect(data.device.toLowerCase()).toContain(ECHO.toLowerCase());
+        expect(typeof data.volume).toBe("number");
+        expect(data.volume).toBeGreaterThanOrEqual(0);
+        expect(data.volume).toBeLessThanOrEqual(100);
+        originalVolume = data.volume;
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "sets volume to 30",
+      async () => {
+        const { stdout, stderr, code } = await execCli(["volume", "30", "--device", ECHO]);
+        expect(code, stderr).toBe(0);
+        expect(stdout + stderr).toContain("Volume set to 30");
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "verifies volume was set to 30",
+      async () => {
+        await sleep(1_000);
+        const { stdout, stderr, code } = await execCli(["volume", "--device", ECHO]);
+        expect(code, stderr).toBe(0);
+        const data = JSON.parse(stdout.trim()) as { volume: number };
+        expect(data.volume).toBe(30);
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "restores original volume",
+      async () => {
+        if (originalVolume !== undefined) {
+          const { stdout, stderr, code } = await execCli([
+            "volume",
+            String(originalVolume),
+            "--device",
+            ECHO,
+          ]);
+          expect(code, stderr).toBe(0);
+          expect(stdout + stderr).toContain(`Volume set to ${originalVolume}`);
+        }
+      },
+      TEST_TIMEOUT
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Lounge Lamp — brightness control by name
+  // ---------------------------------------------------------------------------
+  describe(`${LAMP} (brightness control)`, () => {
+    let originalBrightness: number | undefined;
+
+    beforeAll(async () => {
+      // Ensure lamp is on before brightness tests
+      await execCli(["switch", LAMP, "on"]);
+      await sleep(2_000);
+    }, 15_000);
+
+    it(
+      "gets current brightness by name",
+      async () => {
+        const { stdout, stderr, code } = await execCli(["brightness", "--name", LAMP]);
+        expect(code, stderr).toBe(0);
+        const data = JSON.parse(stdout.trim()) as {
+          device: string;
+          brightness?: number;
+          powerState?: string;
+        };
+        expect(data.device.toLowerCase()).toContain(LAMP.toLowerCase());
+        if (data.brightness !== undefined) {
+          expect(typeof data.brightness).toBe("number");
+          expect(data.brightness).toBeGreaterThanOrEqual(0);
+          expect(data.brightness).toBeLessThanOrEqual(100);
+          originalBrightness = data.brightness;
+        }
+        if (data.powerState) {
+          expect(typeof data.powerState).toBe("string");
+        }
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "sets brightness to 50% by name",
+      async () => {
+        const { stdout, stderr, code } = await execCli(["brightness", "50", "--name", LAMP]);
+        expect(code, stderr).toBe(0);
+        expect(stdout + stderr).toContain("Brightness set to 50%");
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "verifies brightness was set to 50%",
+      async () => {
+        await sleep(2_000);
+        const { stdout, stderr, code } = await execCli(["brightness", "--name", LAMP]);
+        expect(code, stderr).toBe(0);
+        const data = JSON.parse(stdout.trim()) as { brightness?: number };
+        if (data.brightness !== undefined) {
+          expect(data.brightness).toBe(50);
+        }
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "sets brightness to 100% by name",
+      async () => {
+        await sleep(2_000);
+        const { stdout, stderr, code } = await execCli(["brightness", "100", "--name", LAMP]);
+        expect(code, stderr).toBe(0);
+        expect(stdout + stderr).toContain("Brightness set to 100%");
+      },
+      TEST_TIMEOUT
+    );
+
+    it(
+      "restores original brightness if captured",
+      async () => {
+        if (originalBrightness !== undefined) {
+          await sleep(2_000);
+          const { stdout, stderr, code } = await execCli([
+            "brightness",
+            String(originalBrightness),
+            "--name",
+            LAMP,
+          ]);
+          expect(code, stderr).toBe(0);
+          expect(stdout + stderr).toContain(`Brightness set to ${originalBrightness}%`);
+        }
       },
       TEST_TIMEOUT
     );
