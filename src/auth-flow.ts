@@ -55,9 +55,12 @@ export async function runBrowserAuth(domain: Domain = "amazon.co.uk"): Promise<A
     ...(tunnel ? { proxyTunnelUrl: tunnel.url } : {}),
   };
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const url = tunnel ? tunnel.url : `http://127.0.0.1:${PROXY_PORT}`;
-    console.error(`Visit this URL to log in: ${url}\n`);
+    const publicIpRes = await fetch("https://api.ipify.org?format=json");
+    const publicIp = publicIpRes.ok ? (await publicIpRes.json()).ip : "unknown";
+    console.error(`Visit this URL to log in: ${url}`);
+    console.error(`Public IP: ${publicIp}\n`);
 
     alexaCookie.generateAlexaCookie(opts, (err: Error | null, result: { refreshToken?: string }) => {
       if (err && err.message.includes("Please open")) {
