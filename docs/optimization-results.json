@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-03-14T23:39:28.940Z",
+  "summary": {
+    "totalBeforeBytes": 13845,
+    "totalAfterBytes": 13845,
+    "totalReductionPercent": "0.0",
+    "savedBytes": 0
+  },
+  "details": [
+    {
+      "tool": "list_devices",
+      "description": "List all Echo devices on the account",
+      "beforeSize": 2186,
+      "afterSize": 2186,
+      "reduction": "0.0%"
+    },
+    {
+      "tool": "list_appliances",
+      "description": "List smart home appliances (lights, plugs, etc.)",
+      "beforeSize": 11659,
+      "afterSize": 11659,
+      "reduction": "0.0%"
+    }
+  ]
+}

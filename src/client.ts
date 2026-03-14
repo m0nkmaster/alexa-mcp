@@ -16,10 +16,10 @@ export interface Appliance {
   entityId: string;
   /** GraphQL endpoint ID (amzn1.alexa.endpoint.*) when available from layout; used for eu-api control */
   endpointId?: string;
-  applianceId: string;
+  applianceId?: string;
   friendlyName: string;
   friendlyDescription?: string;
-  applianceTypes: string[];
+  applianceTypes?: string[];
   isReachable: boolean;
   /** Amazon customer ID of the account that owns this device (for profile matching) */
   deviceOwnerCustomerId?: string;
@@ -319,7 +319,15 @@ export class AlexaClient {
 
   async getDevices(): Promise<Device[]> {
     const data = (await this.getFromAppApi("/api/devices-v2/device?cached=true")) as { devices?: Device[] };
-    return data?.devices ?? [];
+    const devices = data?.devices ?? [];
+    return devices.map((d) => ({
+      accountName: d.accountName,
+      serialNumber: d.serialNumber,
+      deviceType: d.deviceType,
+      deviceFamily: d.deviceFamily,
+      deviceOwnerCustomerId: d.deviceOwnerCustomerId,
+      online: d.online,
+    }));
   }
 
   async resolveDevice(deviceQuery: string): Promise<Device | null> {
@@ -493,7 +501,12 @@ export class AlexaClient {
     } else {
       appliances = parseSmarthomeV2Response(r.data);
     }
-    return appliances;
+    return appliances.map((a) => ({
+      endpointId: a.endpointId,
+      entityId: a.entityId,
+      friendlyName: a.friendlyName,
+      isReachable: a.isReachable,
+    }));
   }
 
   /** Resolve smart home device by friendly name (case-insensitive partial match). Prefer direct GraphQL control. */

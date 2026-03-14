@@ -1,0 +1,1604 @@
+{
+  "capturedAt": "2026-03-14T23:37:27.567Z",
+  "summary": {
+    "totalTools": 9,
+    "totalSize": 37168,
+    "tools": [
+      {
+        "tool": "list_devices",
+        "description": "List all Echo devices on the account",
+        "sizeBytes": 16296,
+        "sizeKB": "15.91"
+      },
+      {
+        "tool": "list_appliances",
+        "description": "List smart home appliances (lights, plugs, etc.)",
+        "sizeBytes": 17205,
+        "sizeKB": "16.80"
+      },
+      {
+        "tool": "list_device_groups",
+        "description": "List room/space groups (Living room, Kitchen, etc.)",
+        "sizeBytes": 1539,
+        "sizeKB": "1.50"
+      },
+      {
+        "tool": "list_audio_groups",
+        "description": "List multi-room audio groups (Downstairs, Everywhere, etc.)",
+        "sizeBytes": 628,
+        "sizeKB": "0.61"
+      },
+      {
+        "tool": "list_routines",
+        "description": "List Alexa routines",
+        "sizeBytes": 990,
+        "sizeKB": "0.97"
+      },
+      {
+        "tool": "auth_status",
+        "description": "Check Alexa authentication status",
+        "sizeBytes": 36,
+        "sizeKB": "0.04"
+      },
+      {
+        "tool": "get_volume",
+        "description": "Get the current speaker volume (0–100) for an Echo device",
+        "sizeBytes": 12,
+        "sizeKB": "0.01"
+      },
+      {
+        "tool": "now_playing",
+        "description": "Get now-playing state for an Echo device",
+        "sizeBytes": 460,
+        "sizeKB": "0.45"
+      },
+      {
+        "tool": "get_brightness_by_name",
+        "description": "Get the current brightness and power state of a smart home light",
+        "sizeBytes": 2,
+        "sizeKB": "0.00"
+      }
+    ]
+  },
+  "responses": [
+    {
+      "tool": "list_devices",
+      "description": "List all Echo devices on the account",
+      "responseSize": 16296,
+      "response": [
+        {
+          "accountName": "Office TV",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "KINDLE_BOOKS",
+            "REMINDERS",
+            "SET_TIME_ZONE",
+            "EARCONS",
+            "I_HEART_RADIO",
+            "MICROPHONE",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "TIMERS_AND_ALARMS",
+            "CUSTOM_ALARM_TONE",
+            "SET_LOCALE",
+            "AUDIBLE",
+            "SPEECH_RECOGNIZER_USS",
+            "SUPPORTS_LOCALE_SWITCH",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "DEEZER",
+            "ASCENDING_ALARM_VOLUME",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "HANDS_FREE",
+            "GOLDFISH",
+            "SLEEP",
+            "APPLE_MUSIC",
+            "DIALOG_INTERFACE_VERSION",
+            "SIRIUSXM",
+            "VOLUME_SETTING",
+            "SOUND_SETTINGS",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "TOUCH_INITIATED",
+            "SUPPORTS_LOCALE",
+            "MUSIC_SKILL",
+            "CHANGE_NAME",
+            "TIDAL",
+            "PERSISTENT_CONNECTION",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "AUDIO_PLAYER",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A09009442UY06FKCSKB0Y",
+          "deviceFamily": "THIRD_PARTY_AVS_VIDEO_FIRST",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A218GHTK4WJVLR",
+          "deviceTypeFriendlyName": "2021 Samsung UHD TV",
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": false,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "51e0e7101a3d4a4d8111f06eed0cadaa",
+          "softwareVersion": "1"
+        },
+        {
+          "accountName": "Rob's Jabra Elite 7 Pro",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "KINDLE_BOOKS",
+            "GOLDFISH",
+            "SLEEP",
+            "APPLE_MUSIC",
+            "I_HEART_RADIO",
+            "SIRIUSXM",
+            "VOLUME_SETTING",
+            "MICROPHONE",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "TIMERS_AND_ALARMS",
+            "TOUCH_INITIATED",
+            "AUDIBLE",
+            "MUSIC_SKILL",
+            "CHANGE_NAME",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "DEEZER",
+            "TIDAL",
+            "PERSISTENT_CONNECTION",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "AUDIO_PLAYER",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A02677783VJM0HCHU17Y3",
+          "deviceFamily": "UNKNOWN",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "AJ5M15XLIE2SW",
+          "deviceTypeFriendlyName": "Jabra Elite 7 Pro",
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": false,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "5b82709ef91e47758b89a1cc59cc5674",
+          "softwareVersion": "0"
+        },
+        {
+          "accountName": "Lounge Echo",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "ALEXA_PRESENCE",
+            "FACE_TO_TALK",
+            "SET_TIME_ZONE",
+            "EARCONS",
+            "AUDIO_CONTROLS",
+            "SUPPORT_CALENDAR_ALERT",
+            "MICROPHONE",
+            "LOCALIZATION",
+            "TIMERS_AND_ALARMS",
+            "AUDIBLE",
+            "TEMPERATURE_SENSOR",
+            "SPEECH_RECOGNIZER_USS",
+            "SUPPORTS_LOCALE_SWITCH",
+            "FAR_FIELD_WAKE_WORD",
+            "TAP_GESTURES_RESUME_MEDIA",
+            "DEEZER",
+            "GADGETS",
+            "EQUALIZER_CONTROLLER_BASS",
+            "PAIR_BT_SINK",
+            "ADAPTIVE_VOLUME",
+            "SLEEP",
+            "TAP_GESTURES",
+            "DIALOG_INTERFACE_VERSION",
+            "VOLUME_SETTING",
+            "SOUND_SETTINGS",
+            "TUPLE_CATEGORY_A",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "SUPPORTS_LOCALE",
+            "MUSIC_SKILL",
+            "TIDAL",
+            "VOICE_TRAINING",
+            "AUDIO_PLAYER",
+            "KINDLE_BOOKS",
+            "MOTION_DETECTION",
+            "I_HEART_RADIO",
+            "ALEXA_NETWORKING_WIFI",
+            "ALEXA_DEVICE_REBOOT",
+            "ALEXA_VOICE",
+            "TUPLE",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "GUARD_EARCON",
+            "EQUALIZER_CONTROLLER_MIDRANGE",
+            "WAKE_WORD_SENSITIVITY",
+            "CUSTOM_ALARM_TONE",
+            "SET_LOCALE",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "BT_PAIRING_FLOW_V2",
+            "ASCENDING_ALARM_VOLUME",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "TAHOE_BYOD",
+            "POPTART",
+            "EQUALIZER_CONTROLLER_TREBLE",
+            "AUX_SETTINGS",
+            "GOLDFISH",
+            "EFDCARDS",
+            "ALEXA_NETWORKING",
+            "ALEXA_NETWORKING_SPEEDTEST",
+            "APPLE_MUSIC",
+            "PAIR_BT_SOURCE",
+            "SIRIUSXM",
+            "LEMUR_ALPHA",
+            "FLASH_BRIEFING",
+            "TAP_GESTURES_SINGLE_TAP",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "PANDORA",
+            "DS_VOLUME_SETTING",
+            "SALMON",
+            "REQUIRES_OOBE_FOR_SETUP",
+            "CHANGE_NAME",
+            "PERSISTENT_CONNECTION",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "UPDATE_WIFI",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A03389171QFNYUVBMKR0",
+          "deviceFamily": "ECHO",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A3RMGO6LYLH7YN",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [
+            "fb8fc8b8a6a34ce4880ff8d447590713",
+            "f4db8418d7a54cb6b033d7471d9158a4"
+          ],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G2A1A60304560DP3",
+          "softwareVersion": "12718774660"
+        },
+        {
+          "accountName": "Office Echo",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "ALEXA_PRESENCE",
+            "FACE_TO_TALK",
+            "SET_TIME_ZONE",
+            "EARCONS",
+            "AUDIO_CONTROLS",
+            "SUPPORT_CALENDAR_ALERT",
+            "MICROPHONE",
+            "LOCALIZATION",
+            "TIMERS_AND_ALARMS",
+            "AUDIBLE",
+            "SPEECH_RECOGNIZER_USS",
+            "SUPPORTS_LOCALE_SWITCH",
+            "FAR_FIELD_WAKE_WORD",
+            "DEEZER",
+            "GADGETS",
+            "EQUALIZER_CONTROLLER_BASS",
+            "PAIR_BT_SINK",
+            "ADAPTIVE_VOLUME",
+            "PAIR_REMOTE",
+            "SLEEP",
+            "DIALOG_INTERFACE_VERSION",
+            "VOLUME_SETTING",
+            "SOUND_SETTINGS",
+            "TUPLE_CATEGORY_A",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "SUPPORTS_LOCALE",
+            "MUSIC_SKILL",
+            "TIDAL",
+            "VOICE_TRAINING",
+            "AUDIO_PLAYER",
+            "KINDLE_BOOKS",
+            "I_HEART_RADIO",
+            "ALEXA_NETWORKING_WIFI",
+            "ALEXA_DEVICE_REBOOT",
+            "ALEXA_VOICE",
+            "TUPLE",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "GUARD_EARCON",
+            "EQUALIZER_CONTROLLER_MIDRANGE",
+            "WAKE_WORD_SENSITIVITY",
+            "CUSTOM_ALARM_TONE",
+            "SET_LOCALE",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "BT_PAIRING_FLOW_V2",
+            "ASCENDING_ALARM_VOLUME",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "TAHOE_BYOD",
+            "POPTART",
+            "EQUALIZER_CONTROLLER_TREBLE",
+            "GOLDFISH",
+            "EFDCARDS",
+            "ALEXA_NETWORKING",
+            "ALEXA_NETWORKING_SPEEDTEST",
+            "APPLE_MUSIC",
+            "PAIR_BT_SOURCE",
+            "SIRIUSXM",
+            "LEMUR_ALPHA",
+            "FLASH_BRIEFING",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "PANDORA",
+            "DS_VOLUME_SETTING",
+            "SALMON",
+            "REQUIRES_OOBE_FOR_SETUP",
+            "CHANGE_NAME",
+            "PERSISTENT_CONNECTION",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "UPDATE_WIFI",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A03573532YEYJXOSYCMMR",
+          "deviceFamily": "ECHO",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A1RABVCI4QCIKC",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [
+            "f4db8418d7a54cb6b033d7471d9158a4"
+          ],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G090XG1223070MVV",
+          "softwareVersion": "12718774660"
+        },
+        {
+          "accountName": "Kitchen Echo",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "ALEXA_PRESENCE",
+            "FACE_TO_TALK",
+            "SET_TIME_ZONE",
+            "EARCONS",
+            "AUDIO_CONTROLS",
+            "SUPPORT_CALENDAR_ALERT",
+            "MICROPHONE",
+            "LOCALIZATION",
+            "TIMERS_AND_ALARMS",
+            "AUDIBLE",
+            "SPEECH_RECOGNIZER_USS",
+            "SUPPORTS_LOCALE_SWITCH",
+            "FAR_FIELD_WAKE_WORD",
+            "DEEZER",
+            "GADGETS",
+            "EQUALIZER_CONTROLLER_BASS",
+            "PAIR_BT_SINK",
+            "ADAPTIVE_VOLUME",
+            "PAIR_REMOTE",
+            "SLEEP",
+            "DIALOG_INTERFACE_VERSION",
+            "VOLUME_SETTING",
+            "SOUND_SETTINGS",
+            "TUPLE_CATEGORY_A",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "SUPPORTS_LOCALE",
+            "MUSIC_SKILL",
+            "TIDAL",
+            "VOICE_TRAINING",
+            "AUDIO_PLAYER",
+            "KINDLE_BOOKS",
+            "I_HEART_RADIO",
+            "ALEXA_NETWORKING_WIFI",
+            "ALEXA_DEVICE_REBOOT",
+            "ALEXA_VOICE",
+            "TUPLE",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "GUARD_EARCON",
+            "EQUALIZER_CONTROLLER_MIDRANGE",
+            "WAKE_WORD_SENSITIVITY",
+            "CUSTOM_ALARM_TONE",
+            "SET_LOCALE",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "BT_PAIRING_FLOW_V2",
+            "ASCENDING_ALARM_VOLUME",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "TAHOE_BYOD",
+            "POPTART",
+            "EQUALIZER_CONTROLLER_TREBLE",
+            "GOLDFISH",
+            "EFDCARDS",
+            "ALEXA_NETWORKING",
+            "ALEXA_NETWORKING_SPEEDTEST",
+            "APPLE_MUSIC",
+            "PAIR_BT_SOURCE",
+            "SIRIUSXM",
+            "LEMUR_ALPHA",
+            "FLASH_BRIEFING",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "PANDORA",
+            "DS_VOLUME_SETTING",
+            "SALMON",
+            "REQUIRES_OOBE_FOR_SETUP",
+            "CHANGE_NAME",
+            "PERSISTENT_CONNECTION",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "UPDATE_WIFI",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A03573542QPBQ5QIYOT8W",
+          "deviceFamily": "ECHO",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A1RABVCI4QCIKC",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [
+            "fb8fc8b8a6a34ce4880ff8d447590713",
+            "f4db8418d7a54cb6b033d7471d9158a4"
+          ],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G090XG1223070N0Q",
+          "softwareVersion": "12718774660"
+        },
+        {
+          "accountName": "Everywhere",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "KINDLE_BOOKS",
+            "APPLE_MUSIC",
+            "I_HEART_RADIO",
+            "SIRIUSXM",
+            "VOLUME_SETTING",
+            "MICROPHONE",
+            "AMAZON_MUSIC",
+            "PANDORA",
+            "SALMON",
+            "AUDIBLE",
+            "MUSIC_SKILL",
+            "DEEZER",
+            "TIDAL",
+            "TUNE_IN",
+            "AUDIO_PLAYER"
+          ],
+          "charging": null,
+          "clusterMembers": [
+            "G090XG1223070MVV",
+            "G0922J0524020K7X",
+            "G090XG1223070N0Q",
+            "G2A1A60304560DP3"
+          ],
+          "deviceAccountId": "A0670485RHL840CIAQUE",
+          "deviceFamily": "WHA",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A3C9PE6TNYLTCH",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "f4db8418d7a54cb6b033d7471d9158a4",
+          "softwareVersion": "0"
+        },
+        {
+          "accountName": "Rob's Echo Dot",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "ALEXA_PRESENCE",
+            "FACE_TO_TALK",
+            "SET_TIME_ZONE",
+            "EARCONS",
+            "AUDIO_CONTROLS",
+            "SUPPORT_CALENDAR_ALERT",
+            "MICROPHONE",
+            "LOCALIZATION",
+            "TIMERS_AND_ALARMS",
+            "AUDIBLE",
+            "TEMPERATURE_SENSOR",
+            "SPEECH_RECOGNIZER_USS",
+            "SUPPORTS_LOCALE_SWITCH",
+            "FAR_FIELD_WAKE_WORD",
+            "TAP_GESTURES_RESUME_MEDIA",
+            "DEEZER",
+            "GADGETS",
+            "EQUALIZER_CONTROLLER_BASS",
+            "PAIR_BT_SINK",
+            "ADAPTIVE_VOLUME",
+            "SLEEP",
+            "TAP_GESTURES",
+            "DIALOG_INTERFACE_VERSION",
+            "VOLUME_SETTING",
+            "SOUND_SETTINGS",
+            "TUPLE_CATEGORY_A",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "SUPPORTS_LOCALE",
+            "MUSIC_SKILL",
+            "TIDAL",
+            "VOICE_TRAINING",
+            "AUDIO_PLAYER",
+            "KINDLE_BOOKS",
+            "MOTION_DETECTION",
+            "I_HEART_RADIO",
+            "ALEXA_NETWORKING_WIFI",
+            "ALEXA_DEVICE_REBOOT",
+            "ALEXA_VOICE",
+            "TUPLE",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "GUARD_EARCON",
+            "MOTION_SENSOR_RANGE_STRING",
+            "EQUALIZER_CONTROLLER_MIDRANGE",
+            "WAKE_WORD_SENSITIVITY",
+            "CUSTOM_ALARM_TONE",
+            "SET_LOCALE",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "BT_PAIRING_FLOW_V2",
+            "ASCENDING_ALARM_VOLUME",
+            "DEREGISTER_DEVICE",
+            "TUNE_IN",
+            "TAHOE_BYOD",
+            "POPTART",
+            "EQUALIZER_CONTROLLER_TREBLE",
+            "GOLDFISH",
+            "EFDCARDS",
+            "ALEXA_NETWORKING",
+            "ALEXA_NETWORKING_SPEEDTEST",
+            "APPLE_MUSIC",
+            "PAIR_BT_SOURCE",
+            "SIRIUSXM",
+            "LEMUR_ALPHA",
+            "FLASH_BRIEFING",
+            "TAP_GESTURES_SINGLE_TAP",
+            "AMAZON_MUSIC",
+            "ADAPTIVE_LISTENING",
+            "PANDORA",
+            "DS_VOLUME_SETTING",
+            "SALMON",
+            "REQUIRES_OOBE_FOR_SETUP",
+            "CHANGE_NAME",
+            "PERSISTENT_CONNECTION",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "UPDATE_WIFI",
+            "DREAM_TRAINING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A04384401MWPHN05JTLLB",
+          "deviceFamily": "ECHO",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A4ZXE0RM7LQ7A",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [
+            "f4db8418d7a54cb6b033d7471d9158a4"
+          ],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G0922J0524020K7X",
+          "softwareVersion": "12718774660"
+        },
+        {
+          "accountName": "Rob's Fire TV",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "DIALOG_INTERFACE_VERSION",
+            "EARCONS",
+            "VOLUME_SETTING",
+            "FLASH_BRIEFING",
+            "MICROPHONE",
+            "SOUND_SETTINGS",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "ADAPTIVE_LISTENING",
+            "TIMERS_AND_ALARMS",
+            "CUSTOM_ALARM_TONE",
+            "SHARKNADO",
+            "SUPPORTS_LOCALE",
+            "ARTHUR_TARGET",
+            "LIVE_VIEW",
+            "SPEECH_RECOGNIZER_USS",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_LOCALE_SWITCH",
+            "CHANGE_NAME",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "PERSISTENT_CONNECTION"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A0803663RYYGY8LZW9YE",
+          "deviceFamily": "FIRE_TV",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A1WZKXFLI43K86",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G072JM1050250GAW",
+          "softwareVersion": "30501844100"
+        },
+        {
+          "accountName": "Downstairs",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "KINDLE_BOOKS",
+            "APPLE_MUSIC",
+            "I_HEART_RADIO",
+            "SIRIUSXM",
+            "VOLUME_SETTING",
+            "MICROPHONE",
+            "AMAZON_MUSIC",
+            "PANDORA",
+            "SALMON",
+            "AUDIBLE",
+            "MUSIC_SKILL",
+            "DEEZER",
+            "TIDAL",
+            "TUNE_IN",
+            "AUDIO_PLAYER"
+          ],
+          "charging": null,
+          "clusterMembers": [
+            "G090XG1223070N0Q",
+            "G2A1A60304560DP3"
+          ],
+          "deviceAccountId": "A0686357392HTG805KCYY",
+          "deviceFamily": "WHA",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A3C9PE6TNYLTCH",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "fb8fc8b8a6a34ce4880ff8d447590713",
+          "softwareVersion": "0"
+        },
+        {
+          "accountName": "This Device",
+          "appDeviceList": [
+            {
+              "deviceAccountId": "A02177481TX6AIGKWUDI2",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "999705C8391049EDA438A3E895E9FA82"
+            },
+            {
+              "deviceAccountId": "A0531408O3V6GVUM972M",
+              "deviceType": "A2TF17PFR55MTB",
+              "serialNumber": "2be9c6887ce341b488eaa7e54626f534"
+            },
+            {
+              "deviceAccountId": "A0567252115ZCPOJGV6RK",
+              "deviceType": "A2TF17PFR55MTB",
+              "serialNumber": "12cb18b59f234b5faf02716fa49bbfd9"
+            },
+            {
+              "deviceAccountId": "A04200599UKUA6W02K6R",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "8369916A2CFF41659A5CE4727AAF3348"
+            },
+            {
+              "deviceAccountId": "A038247528ZVUVQLOCKEH",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "B8959820E631485E90EF4469B5010573"
+            },
+            {
+              "deviceAccountId": "A02087922J2PKVQ32VM3I",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "f2edc9a36539144dc593cc3f7f5d26c2"
+            },
+            {
+              "deviceAccountId": "A06700771UTIV85MEZ6B4",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "9e4898214742b7dd366e5e2a1a1bec56"
+            },
+            {
+              "deviceAccountId": "A086189837731IGG5GC0F",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "d7f0ef650e7b6cad35119e070177b661"
+            },
+            {
+              "deviceAccountId": "A085452147P7WCKI0JJA",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "11ac1348345ca91843c8feb889b1a7d6"
+            },
+            {
+              "deviceAccountId": "A0604478328J2W5L0G4Y5",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "a0ef79851903814804198ac8031ef836"
+            },
+            {
+              "deviceAccountId": "A0923147357Q5V9VXVZSH",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "1480a00de0e15cb3968c75442cca9714"
+            },
+            {
+              "deviceAccountId": "A00504673TWY8JW8UYWH",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "78dc0ad689d84a15154fb9332b22ca36"
+            },
+            {
+              "deviceAccountId": "A081124332RRDSCGQRMA5",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "5798b646eae299cc1c14dc1b2136e302"
+            }
+          ],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "TIMERS_AND_ALARMS",
+            "GOLDFISH",
+            "CUSTOM_ALARM_TONE",
+            "REMINDERS",
+            "DIALOG_INTERFACE_VERSION",
+            "VOLUME_SETTING",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME",
+            "MICROPHONE",
+            "SOUND_SETTINGS",
+            "ADAPTIVE_LISTENING"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A081124332RRDSCGQRMA5",
+          "deviceFamily": "VOX",
+          "deviceOwnerCustomerId": "ARK5DC6IGHZCC",
+          "deviceType": "A2IVLV5VM2W81",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "5798b646eae299cc1c14dc1b2136e302",
+          "softwareVersion": "1"
+        },
+        {
+          "accountName": "Emma's FireTVStick",
+          "appDeviceList": [],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "REMINDERS",
+            "DIALOG_INTERFACE_VERSION",
+            "EARCONS",
+            "VOLUME_SETTING",
+            "FLASH_BRIEFING",
+            "MICROPHONE",
+            "SOUND_SETTINGS",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "SUPPORTS_SOFTWARE_VERSION",
+            "ADAPTIVE_LISTENING",
+            "TIMERS_AND_ALARMS",
+            "CUSTOM_ALARM_TONE",
+            "SHARKNADO",
+            "SUPPORTS_LOCALE",
+            "ARTHUR_TARGET",
+            "SPEECH_RECOGNIZER_USS",
+            "ACTIVE_AFTER_FRO",
+            "SUPPORTS_LOCALE_SWITCH",
+            "CHANGE_NAME",
+            "SUPPORTS_CONNECTED_HOME_CLOUD_ONLY",
+            "PERSISTENT_CONNECTION"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A04965031NSJ90ZKRD1ZF",
+          "deviceFamily": "FIRE_TV",
+          "deviceOwnerCustomerId": "A2CDNAIP1NMA4J",
+          "deviceType": "A31DTMEEVDDOIV",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "G071CQ0521920AJ4",
+          "softwareVersion": "28085968516"
+        },
+        {
+          "accountName": "This Device",
+          "appDeviceList": [
+            {
+              "deviceAccountId": "A0229217J6S2UC7QW70V",
+              "deviceType": "A2IVLV5VM2W81",
+              "serialNumber": "5678A02FCE1842279C99678C77E89D72"
+            }
+          ],
+          "associatedUnitIds": null,
+          "capabilities": [
+            "GOLDFISH",
+            "REMINDERS",
+            "DIALOG_INTERFACE_VERSION",
+            "EARCONS",
+            "VOLUME_SETTING",
+            "MICROPHONE",
+            "SOUND_SETTINGS",
+            "MULTI_WAKEWORDS_SUPPORTED",
+            "ADAPTIVE_LISTENING",
+            "TIMERS_AND_ALARMS",
+            "CUSTOM_ALARM_TONE",
+            "SPEECH_RECOGNIZER_USS",
+            "TIMERS_ALARMS_NOTIFICATIONS_VOLUME"
+          ],
+          "charging": null,
+          "clusterMembers": [],
+          "deviceAccountId": "A0229217J6S2UC7QW70V",
+          "deviceFamily": "VOX",
+          "deviceOwnerCustomerId": "A2CDNAIP1NMA4J",
+          "deviceType": "A2IVLV5VM2W81",
+          "deviceTypeFriendlyName": null,
+          "essid": null,
+          "language": null,
+          "macAddress": null,
+          "online": true,
+          "parentClusters": [],
+          "postalCode": null,
+          "registrationId": null,
+          "remainingBatteryLevel": null,
+          "serialNumber": "5678A02FCE1842279C99678C77E89D72",
+          "softwareVersion": "1"
+        }
+      ]
+    },
+    {
+      "tool": "list_appliances",
+      "description": "List smart home appliances (lights, plugs, etc.)",
+      "responseSize": 17205,
+      "response": [
+        {
+          "entityId": "amzn1.alexa.endpoint.2f59cc2f-e49e-4baf-a686-3f048d3a8189",
+          "endpointId": "amzn1.alexa.endpoint.2f59cc2f-e49e-4baf-a686-3f048d3a8189",
+          "applianceId": "amzn1.alexa.endpoint.2f59cc2f-e49e-4baf-a686-3f048d3a8189",
+          "friendlyName": "Emma’s reading light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.8d6a1216-864e-481d-b324-11a7a3ae727d",
+          "endpointId": "amzn1.alexa.endpoint.8d6a1216-864e-481d-b324-11a7a3ae727d",
+          "applianceId": "amzn1.alexa.endpoint.8d6a1216-864e-481d-b324-11a7a3ae727d",
+          "friendlyName": "com amazon firebat",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.8b7bc4f8-96eb-42bb-9376-a5283ab4688b",
+          "endpointId": "amzn1.alexa.endpoint.8b7bc4f8-96eb-42bb-9376-a5283ab4688b",
+          "applianceId": "amzn1.alexa.endpoint.8b7bc4f8-96eb-42bb-9376-a5283ab4688b",
+          "friendlyName": "Tenth light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.e3e4bf18-599e-4e80-a916-f15e0b37e0f8",
+          "endpointId": "amzn1.alexa.endpoint.e3e4bf18-599e-4e80-a916-f15e0b37e0f8",
+          "applianceId": "amzn1.alexa.endpoint.e3e4bf18-599e-4e80-a916-f15e0b37e0f8",
+          "friendlyName": "Front Door",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.cd168e79-4c49-40f1-84ae-6146e9390cbc",
+          "endpointId": "amzn1.alexa.endpoint.cd168e79-4c49-40f1-84ae-6146e9390cbc",
+          "applianceId": "amzn1.alexa.endpoint.cd168e79-4c49-40f1-84ae-6146e9390cbc",
+          "friendlyName": "Good Night",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.778aae8c-2298-45e0-95bc-378d0dfeb4dc",
+          "endpointId": "amzn1.alexa.endpoint.778aae8c-2298-45e0-95bc-378d0dfeb4dc",
+          "applianceId": "amzn1.alexa.endpoint.778aae8c-2298-45e0-95bc-378d0dfeb4dc",
+          "friendlyName": "Office TV",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.8926f2e1-052e-4244-9915-97d794da1292",
+          "endpointId": "amzn1.alexa.endpoint.8926f2e1-052e-4244-9915-97d794da1292",
+          "applianceId": "amzn1.alexa.endpoint.8926f2e1-052e-4244-9915-97d794da1292",
+          "friendlyName": "com disney disneyplus",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.dc431eaa-a3ad-47d4-ae31-a042e162a5ae",
+          "endpointId": "amzn1.alexa.endpoint.dc431eaa-a3ad-47d4-ae31-a042e162a5ae",
+          "applianceId": "amzn1.alexa.endpoint.dc431eaa-a3ad-47d4-ae31-a042e162a5ae",
+          "friendlyName": "Thirteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.cb16cca7-e4fc-4e0d-9cf4-965a5e550f82",
+          "endpointId": "amzn1.alexa.endpoint.cb16cca7-e4fc-4e0d-9cf4-965a5e550f82",
+          "applianceId": "amzn1.alexa.endpoint.cb16cca7-e4fc-4e0d-9cf4-965a5e550f82",
+          "friendlyName": "com amazon firebat",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.6e6da8a6-964c-47e3-851e-967d937a0b75",
+          "endpointId": "amzn1.alexa.endpoint.6e6da8a6-964c-47e3-851e-967d937a0b75",
+          "applianceId": "amzn1.alexa.endpoint.6e6da8a6-964c-47e3-851e-967d937a0b75",
+          "friendlyName": "com amazon avod",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.a7759965-928a-40d6-9b38-ce8de4308999",
+          "endpointId": "amzn1.alexa.endpoint.a7759965-928a-40d6-9b38-ce8de4308999",
+          "applianceId": "amzn1.alexa.endpoint.a7759965-928a-40d6-9b38-ce8de4308999",
+          "friendlyName": "Alexa VSK at unknown",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.8651db0a-bb52-4fa9-8560-1d13a92301c5",
+          "endpointId": "amzn1.alexa.endpoint.8651db0a-bb52-4fa9-8560-1d13a92301c5",
+          "applianceId": "amzn1.alexa.endpoint.8651db0a-bb52-4fa9-8560-1d13a92301c5",
+          "friendlyName": "3940EU",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.0c642876-4acd-4008-92c0-06e24a706e9c",
+          "endpointId": "amzn1.alexa.endpoint.0c642876-4acd-4008-92c0-06e24a706e9c",
+          "applianceId": "amzn1.alexa.endpoint.0c642876-4acd-4008-92c0-06e24a706e9c",
+          "friendlyName": "First light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.e8a151a4-3234-4a45-a060-552263594db1",
+          "endpointId": "amzn1.alexa.endpoint.e8a151a4-3234-4a45-a060-552263594db1",
+          "applianceId": "amzn1.alexa.endpoint.e8a151a4-3234-4a45-a060-552263594db1",
+          "friendlyName": "Fourteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.ac879856-56a7-420d-8772-81bbeb554fa8",
+          "endpointId": "amzn1.alexa.endpoint.ac879856-56a7-420d-8772-81bbeb554fa8",
+          "applianceId": "amzn1.alexa.endpoint.ac879856-56a7-420d-8772-81bbeb554fa8",
+          "friendlyName": "Leave Home",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.65055217-6d63-4fae-b0d0-af065002b822",
+          "endpointId": "amzn1.alexa.endpoint.65055217-6d63-4fae-b0d0-af065002b822",
+          "applianceId": "amzn1.alexa.endpoint.65055217-6d63-4fae-b0d0-af065002b822",
+          "friendlyName": "Eighteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.bb98f5c5-ad6d-4274-bb32-fc82170f4f6b",
+          "endpointId": "amzn1.alexa.endpoint.bb98f5c5-ad6d-4274-bb32-fc82170f4f6b",
+          "applianceId": "amzn1.alexa.endpoint.bb98f5c5-ad6d-4274-bb32-fc82170f4f6b",
+          "friendlyName": "TV",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.578f5e82-d935-44da-bbee-aefa4d6e16e1",
+          "endpointId": "amzn1.alexa.endpoint.578f5e82-d935-44da-bbee-aefa4d6e16e1",
+          "applianceId": "amzn1.alexa.endpoint.578f5e82-d935-44da-bbee-aefa4d6e16e1",
+          "friendlyName": "Florrie",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.79535ed5-d44d-4b75-b68a-2c83ccf1f3dd",
+          "endpointId": "amzn1.alexa.endpoint.79535ed5-d44d-4b75-b68a-2c83ccf1f3dd",
+          "applianceId": "amzn1.alexa.endpoint.79535ed5-d44d-4b75-b68a-2c83ccf1f3dd",
+          "friendlyName": "Family Time",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.2a96444a-a2dd-445b-961b-c0d5ce9776e2",
+          "endpointId": "amzn1.alexa.endpoint.2a96444a-a2dd-445b-961b-c0d5ce9776e2",
+          "applianceId": "amzn1.alexa.endpoint.2a96444a-a2dd-445b-961b-c0d5ce9776e2",
+          "friendlyName": "Sixteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.502de87e-b0f5-4cf6-a464-ac3f0c62270d",
+          "endpointId": "amzn1.alexa.endpoint.502de87e-b0f5-4cf6-a464-ac3f0c62270d",
+          "applianceId": "amzn1.alexa.endpoint.502de87e-b0f5-4cf6-a464-ac3f0c62270d",
+          "friendlyName": "FireTV Launcher",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.832924f8-6117-4cac-a907-be0978ada2d7",
+          "endpointId": "amzn1.alexa.endpoint.832924f8-6117-4cac-a907-be0978ada2d7",
+          "applianceId": "amzn1.alexa.endpoint.832924f8-6117-4cac-a907-be0978ada2d7",
+          "friendlyName": "Twenty-fourth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.18bfdd0e-b2a7-480e-920c-70ca3833fbfa",
+          "endpointId": "amzn1.alexa.endpoint.18bfdd0e-b2a7-480e-920c-70ca3833fbfa",
+          "applianceId": "amzn1.alexa.endpoint.18bfdd0e-b2a7-480e-920c-70ca3833fbfa",
+          "friendlyName": "Ninth light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.558c0126-df37-4a2d-9010-a0de826deb58",
+          "endpointId": "amzn1.alexa.endpoint.558c0126-df37-4a2d-9010-a0de826deb58",
+          "applianceId": "amzn1.alexa.endpoint.558c0126-df37-4a2d-9010-a0de826deb58",
+          "friendlyName": "Twenty-third light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.3ea9ad80-d256-4e33-b1ae-5435bc324138",
+          "endpointId": "amzn1.alexa.endpoint.3ea9ad80-d256-4e33-b1ae-5435bc324138",
+          "applianceId": "amzn1.alexa.endpoint.3ea9ad80-d256-4e33-b1ae-5435bc324138",
+          "friendlyName": "Seventeenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.2befbce6-7929-4bb5-8585-54450fd3a0b4",
+          "endpointId": "amzn1.alexa.endpoint.2befbce6-7929-4bb5-8585-54450fd3a0b4",
+          "applianceId": "amzn1.alexa.endpoint.2befbce6-7929-4bb5-8585-54450fd3a0b4",
+          "friendlyName": "Rob's Echo Dot",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.d0a7d81d-dd43-49fd-a386-738fb15cd662",
+          "endpointId": "amzn1.alexa.endpoint.d0a7d81d-dd43-49fd-a386-738fb15cd662",
+          "applianceId": "amzn1.alexa.endpoint.d0a7d81d-dd43-49fd-a386-738fb15cd662",
+          "friendlyName": "Bathroom ",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.046cb07c-a277-447d-93b7-fd7a0bbfca54",
+          "endpointId": "amzn1.alexa.endpoint.046cb07c-a277-447d-93b7-fd7a0bbfca54",
+          "applianceId": "amzn1.alexa.endpoint.046cb07c-a277-447d-93b7-fd7a0bbfca54",
+          "friendlyName": "Second light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.f8b89f34-147a-4f45-8a8b-d4679be5e24a",
+          "endpointId": "amzn1.alexa.endpoint.f8b89f34-147a-4f45-8a8b-d4679be5e24a",
+          "applianceId": "amzn1.alexa.endpoint.f8b89f34-147a-4f45-8a8b-d4679be5e24a",
+          "friendlyName": "Rob’s reading light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.6e32fe26-37e1-4eff-a017-c16aa6ecd7f4",
+          "endpointId": "amzn1.alexa.endpoint.6e32fe26-37e1-4eff-a017-c16aa6ecd7f4",
+          "applianceId": "amzn1.alexa.endpoint.6e32fe26-37e1-4eff-a017-c16aa6ecd7f4",
+          "friendlyName": "Work",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.da34ca06-6ec7-460c-99de-dcc92987a73f",
+          "endpointId": "amzn1.alexa.endpoint.da34ca06-6ec7-460c-99de-dcc92987a73f",
+          "applianceId": "amzn1.alexa.endpoint.da34ca06-6ec7-460c-99de-dcc92987a73f",
+          "friendlyName": "Mirfield Ring",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.c7ccb095-a4d0-49d0-9a35-50d5ac82f3ee",
+          "endpointId": "amzn1.alexa.endpoint.c7ccb095-a4d0-49d0-9a35-50d5ac82f3ee",
+          "applianceId": "amzn1.alexa.endpoint.c7ccb095-a4d0-49d0-9a35-50d5ac82f3ee",
+          "friendlyName": "Lounge Lamp",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.43a9ef11-2167-4568-b001-a2680135eec0",
+          "endpointId": "amzn1.alexa.endpoint.43a9ef11-2167-4568-b001-a2680135eec0",
+          "applianceId": "amzn1.alexa.endpoint.43a9ef11-2167-4568-b001-a2680135eec0",
+          "friendlyName": "Read",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.f024f75f-ecc3-4eda-a80a-309e2ebe5826",
+          "endpointId": "amzn1.alexa.endpoint.f024f75f-ecc3-4eda-a80a-309e2ebe5826",
+          "applianceId": "amzn1.alexa.endpoint.f024f75f-ecc3-4eda-a80a-309e2ebe5826",
+          "friendlyName": "uk co bbc iplayer",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.cc922a19-1792-4281-b72f-94c69aa37d32",
+          "endpointId": "amzn1.alexa.endpoint.cc922a19-1792-4281-b72f-94c69aa37d32",
+          "applianceId": "amzn1.alexa.endpoint.cc922a19-1792-4281-b72f-94c69aa37d32",
+          "friendlyName": "Alexa VSK at unknown",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.e17420cb-0982-41a8-bc79-e3fe37f32321",
+          "endpointId": "amzn1.alexa.endpoint.e17420cb-0982-41a8-bc79-e3fe37f32321",
+          "applianceId": "amzn1.alexa.endpoint.e17420cb-0982-41a8-bc79-e3fe37f32321",
+          "friendlyName": "TV",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.9fdbee8c-b07d-44cb-89d7-c3ffe767fc69",
+          "endpointId": "amzn1.alexa.endpoint.9fdbee8c-b07d-44cb-89d7-c3ffe767fc69",
+          "applianceId": "amzn1.alexa.endpoint.9fdbee8c-b07d-44cb-89d7-c3ffe767fc69",
+          "friendlyName": "Third light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.6d2c6d53-6e89-4244-b455-e43be6c3499e",
+          "endpointId": "amzn1.alexa.endpoint.6d2c6d53-6e89-4244-b455-e43be6c3499e",
+          "applianceId": "amzn1.alexa.endpoint.6d2c6d53-6e89-4244-b455-e43be6c3499e",
+          "friendlyName": "com amazon imdb tv android app",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.78341a13-82b0-4540-b22f-126cb513971b",
+          "endpointId": "amzn1.alexa.endpoint.78341a13-82b0-4540-b22f-126cb513971b",
+          "applianceId": "amzn1.alexa.endpoint.78341a13-82b0-4540-b22f-126cb513971b",
+          "friendlyName": "Twenty-second light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.13233be7-6162-4b71-95a7-ab6efb64b8cc",
+          "endpointId": "amzn1.alexa.endpoint.13233be7-6162-4b71-95a7-ab6efb64b8cc",
+          "applianceId": "amzn1.alexa.endpoint.13233be7-6162-4b71-95a7-ab6efb64b8cc",
+          "friendlyName": "Dining Room Light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.5be5f76e-6a39-4c4f-afcd-839c955974b4",
+          "endpointId": "amzn1.alexa.endpoint.5be5f76e-6a39-4c4f-afcd-839c955974b4",
+          "applianceId": "amzn1.alexa.endpoint.5be5f76e-6a39-4c4f-afcd-839c955974b4",
+          "friendlyName": "Nineteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.f59d5d36-baef-4935-b858-99e051b23596",
+          "endpointId": "amzn1.alexa.endpoint.f59d5d36-baef-4935-b858-99e051b23596",
+          "applianceId": "amzn1.alexa.endpoint.f59d5d36-baef-4935-b858-99e051b23596",
+          "friendlyName": "Landing lamp",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.dbe44b65-8cb6-4655-90e0-4b4bc20d0c72",
+          "endpointId": "amzn1.alexa.endpoint.dbe44b65-8cb6-4655-90e0-4b4bc20d0c72",
+          "applianceId": "amzn1.alexa.endpoint.dbe44b65-8cb6-4655-90e0-4b4bc20d0c72",
+          "friendlyName": "Kitchen Echo",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.a2a8be0a-7af3-4bf5-9657-b7279200cf75",
+          "endpointId": "amzn1.alexa.endpoint.a2a8be0a-7af3-4bf5-9657-b7279200cf75",
+          "applianceId": "amzn1.alexa.endpoint.a2a8be0a-7af3-4bf5-9657-b7279200cf75",
+          "friendlyName": "Relax",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.977ff345-d0b8-495c-a67c-db3d9a0b1adb",
+          "endpointId": "amzn1.alexa.endpoint.977ff345-d0b8-495c-a67c-db3d9a0b1adb",
+          "applianceId": "amzn1.alexa.endpoint.977ff345-d0b8-495c-a67c-db3d9a0b1adb",
+          "friendlyName": "Twenty-first light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.12d53b92-4843-4867-b76b-7e31b8c8a481",
+          "endpointId": "amzn1.alexa.endpoint.12d53b92-4843-4867-b76b-7e31b8c8a481",
+          "applianceId": "amzn1.alexa.endpoint.12d53b92-4843-4867-b76b-7e31b8c8a481",
+          "friendlyName": "Good Morning",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.ea68ef6d-b589-4f49-a4f1-f9f026c54e91",
+          "endpointId": "amzn1.alexa.endpoint.ea68ef6d-b589-4f49-a4f1-f9f026c54e91",
+          "applianceId": "amzn1.alexa.endpoint.ea68ef6d-b589-4f49-a4f1-f9f026c54e91",
+          "friendlyName": "Washing Machine",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.ec0e4045-14b4-4a8c-9f2f-913c6c1d1133",
+          "endpointId": "amzn1.alexa.endpoint.ec0e4045-14b4-4a8c-9f2f-913c6c1d1133",
+          "applianceId": "amzn1.alexa.endpoint.ec0e4045-14b4-4a8c-9f2f-913c6c1d1133",
+          "friendlyName": "Eighth light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.d182b6e1-b20a-4bfe-9133-f9e70afad7a7",
+          "endpointId": "amzn1.alexa.endpoint.d182b6e1-b20a-4bfe-9133-f9e70afad7a7",
+          "applianceId": "amzn1.alexa.endpoint.d182b6e1-b20a-4bfe-9133-f9e70afad7a7",
+          "friendlyName": "Landing lamp",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.6afd9b61-bb67-40fa-8f57-806e2151b223",
+          "endpointId": "amzn1.alexa.endpoint.6afd9b61-bb67-40fa-8f57-806e2151b223",
+          "applianceId": "amzn1.alexa.endpoint.6afd9b61-bb67-40fa-8f57-806e2151b223",
+          "friendlyName": "Twentieth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.438ba86d-2391-4293-a048-2cf553ef64c6",
+          "endpointId": "amzn1.alexa.endpoint.438ba86d-2391-4293-a048-2cf553ef64c6",
+          "applianceId": "amzn1.alexa.endpoint.438ba86d-2391-4293-a048-2cf553ef64c6",
+          "friendlyName": "com amazon tahoe",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.5f5798ea-4621-4727-a029-e0cc731b5de3",
+          "endpointId": "amzn1.alexa.endpoint.5f5798ea-4621-4727-a029-e0cc731b5de3",
+          "applianceId": "amzn1.alexa.endpoint.5f5798ea-4621-4727-a029-e0cc731b5de3",
+          "friendlyName": "Seventh light our room",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.f6f7df05-961a-4b6d-8a7a-55b3333a7a65",
+          "endpointId": "amzn1.alexa.endpoint.f6f7df05-961a-4b6d-8a7a-55b3333a7a65",
+          "applianceId": "amzn1.alexa.endpoint.f6f7df05-961a-4b6d-8a7a-55b3333a7a65",
+          "friendlyName": "Office Echo",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.85570a35-ed95-4fc1-8b2b-d490e9972263",
+          "endpointId": "amzn1.alexa.endpoint.85570a35-ed95-4fc1-8b2b-d490e9972263",
+          "applianceId": "amzn1.alexa.endpoint.85570a35-ed95-4fc1-8b2b-d490e9972263",
+          "friendlyName": "Lounge Echo",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.9d31d079-a43f-4f58-ada4-6d861f6a51da",
+          "endpointId": "amzn1.alexa.endpoint.9d31d079-a43f-4f58-ada4-6d861f6a51da",
+          "applianceId": "amzn1.alexa.endpoint.9d31d079-a43f-4f58-ada4-6d861f6a51da",
+          "friendlyName": "Garden",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.b86e932d-316a-4424-a8f4-746d36cb40a1",
+          "endpointId": "amzn1.alexa.endpoint.b86e932d-316a-4424-a8f4-746d36cb40a1",
+          "applianceId": "amzn1.alexa.endpoint.b86e932d-316a-4424-a8f4-746d36cb40a1",
+          "friendlyName": "Eleventh light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.4bafda11-abe6-403a-8f8f-246a3a5943f6",
+          "endpointId": "amzn1.alexa.endpoint.4bafda11-abe6-403a-8f8f-246a3a5943f6",
+          "applianceId": "amzn1.alexa.endpoint.4bafda11-abe6-403a-8f8f-246a3a5943f6",
+          "friendlyName": "Rob's Fire TV",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.a61ce602-9170-416f-b8ec-4fef5efd3d14",
+          "endpointId": "amzn1.alexa.endpoint.a61ce602-9170-416f-b8ec-4fef5efd3d14",
+          "applianceId": "amzn1.alexa.endpoint.a61ce602-9170-416f-b8ec-4fef5efd3d14",
+          "friendlyName": "Fifteenth light",
+          "applianceTypes": [],
+          "isReachable": true
+        },
+        {
+          "entityId": "amzn1.alexa.endpoint.b2a849f8-44c6-40ac-a593-1bd8a45874d5",
+          "endpointId": "amzn1.alexa.endpoint.b2a849f8-44c6-40ac-a593-1bd8a45874d5",
+          "applianceId": "amzn1.alexa.endpoint.b2a849f8-44c6-40ac-a593-1bd8a45874d5",
+          "friendlyName": "HP ColorLaserJet M255-M256",
+          "applianceTypes": [],
+          "isReachable": true
+        }
+      ]
+    },
+    {
+      "tool": "list_device_groups",
+      "description": "List room/space groups (Living room, Kitchen, etc.)",
+      "responseSize": 1539,
+      "response": [
+        {
+          "name": "Living room",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.a6d818c3-b0e9-4d2b-bc6f-7a8bbb12d719",
+          "type": "SPACE",
+          "applianceCount": 2
+        },
+        {
+          "name": "Bedroom",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.378187c2-c3c7-418a-bbf9-678a1a09264e",
+          "type": "SPACE",
+          "applianceCount": 0
+        },
+        {
+          "name": "Office",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.4ea3fbd5-6840-4b1d-9df3-94af82e0418e",
+          "type": "SPACE",
+          "applianceCount": 2
+        },
+        {
+          "name": "Play room",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.ce73b225-f38b-4702-8d32-76c4eb3942a3",
+          "type": "SPACE",
+          "applianceCount": 0
+        },
+        {
+          "name": "Dining room",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.391566a9-2def-4573-b2fb-54137a10a91c",
+          "type": "SPACE",
+          "applianceCount": 5
+        },
+        {
+          "name": "Kitchen",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.0d4c6359-b6a2-4f6a-a98f-cc04f4c8ec94",
+          "type": "SPACE",
+          "applianceCount": 8
+        },
+        {
+          "name": "Our bedroom",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.e10783e4-5a9e-48f1-8209-6714d2428e35",
+          "type": "SPACE",
+          "applianceCount": 10
+        },
+        {
+          "name": "Downstairs",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.befc13c8-e657-4fa4-b493-86212ca90d9e",
+          "type": "SPACE",
+          "applianceCount": 1
+        },
+        {
+          "name": "Bathroom",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.32e4ae65-9867-4ffc-adf1-2ba86451e263",
+          "type": "SPACE",
+          "applianceCount": 0
+        },
+        {
+          "name": "Landing",
+          "groupId": "amzn1.HomeAutomation.ApplianceGroup.ARK5DC6IGHZCC.a0240881-36b7-4092-b1ea-acb799a5eff4",
+          "type": "SPACE",
+          "applianceCount": 1
+        }
+      ]
+    },
+    {
+      "tool": "list_audio_groups",
+      "description": "List multi-room audio groups (Downstairs, Everywhere, etc.)",
+      "responseSize": 628,
+      "response": [
+        {
+          "id": "f4db8418d7a54cb6b033d7471d9158a4",
+          "name": "Everywhere",
+          "members": [
+            {
+              "deviceType": "A3RMGO6LYLH7YN",
+              "dsn": "G2A1A60304560DP3",
+              "speakerChannel": "all"
+            },
+            {
+              "deviceType": "A4ZXE0RM7LQ7A",
+              "dsn": "G0922J0524020K7X",
+              "speakerChannel": "all"
+            },
+            {
+              "deviceType": "A1RABVCI4QCIKC",
+              "dsn": "G090XG1223070N0Q",
+              "speakerChannel": "all"
+            },
+            {
+              "deviceType": "A1RABVCI4QCIKC",
+              "dsn": "G090XG1223070MVV",
+              "speakerChannel": "all"
+            }
+          ]
+        },
+        {
+          "id": "fb8fc8b8a6a34ce4880ff8d447590713",
+          "name": "Downstairs",
+          "members": [
+            {
+              "deviceType": "A3RMGO6LYLH7YN",
+              "dsn": "G2A1A60304560DP3",
+              "speakerChannel": "all"
+            },
+            {
+              "deviceType": "A1RABVCI4QCIKC",
+              "dsn": "G090XG1223070N0Q",
+              "speakerChannel": "all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": "list_routines",
+      "description": "List Alexa routines",
+      "responseSize": 990,
+      "response": [
+        {
+          "automationId": "amzn1.alexa.automation.152ef315-2655-4ae0-b63b-ea761b797f0c",
+          "name": "Morning volume",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.fd739312-9cfd-4bbc-92c9-c2696c4587c5",
+          "name": "our bedtime ",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.f66266ad-c2ea-44b3-8e6a-4a4656e21770",
+          "name": "Tell me about my day",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.b9d3f997-e9af-405f-a747-82fa81b71624",
+          "name": "night time kitchen",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.5b5e42d3-f6a8-4137-8314-36f6b0f117d8",
+          "name": "evening lighting",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.8f969815-aa84-4311-bed5-b8657149f173",
+          "name": "kitchen to full",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        },
+        {
+          "automationId": "amzn1.alexa.automation.e3627975-3752-4231-b7e9-4a37e420e792",
+          "name": "reading in bed time",
+          "status": "ENABLED",
+          "type": "ROUTINE"
+        }
+      ]
+    },
+    {
+      "tool": "auth_status",
+      "description": "Check Alexa authentication status",
+      "responseSize": 36,
+      "response": {
+        "configured": true,
+        "deviceCount": 12
+      }
+    },
+    {
+      "tool": "get_volume",
+      "description": "Get the current speaker volume (0–100) for an Echo device",
+      "responseSize": 12,
+      "response": {
+        "volume": 0
+      }
+    },
+    {
+      "tool": "now_playing",
+      "description": "Get now-playing state for an Echo device",
+      "responseSize": 460,
+      "response": {
+        "playerInfo": {
+          "hint": null,
+          "infoText": null,
+          "isPlayingInLemur": false,
+          "lemurVolume": null,
+          "lyrics": null,
+          "mainArt": null,
+          "mediaId": null,
+          "miniArt": null,
+          "miniInfoText": null,
+          "playbackSource": null,
+          "playingInLemurId": null,
+          "progress": null,
+          "provider": null,
+          "quality": null,
+          "queueId": null,
+          "state": null,
+          "template": null,
+          "transport": null,
+          "upNextItems": null,
+          "volume": null
+        },
+        "taskSessionId": "amzn1.echo-api.session.c9e76088-2a27-418e-aa33-77867a1be620",
+        "nowPlaying": {
+          "state": null
+        }
+      }
+    },
+    {
+      "tool": "get_brightness_by_name",
+      "description": "Get the current brightness and power state of a smart home light",
+      "responseSize": 2,
+      "response": {}
+    }
+  ]
+}
