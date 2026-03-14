@@ -1,6 +1,6 @@
 {
   "name": "alexa-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server and CLI for Alexa devices and smart home control",
   "type": "module",
   "main": "dist/index.js",
@@ -26,7 +26,7 @@
     "echo",
     "model-context-protocol"
   ],
-  "author": "",
+  "author": "m0nkmaster",
   "license": "MIT",
   "engines": {
     "node": ">=18"
@@ -47,6 +47,7 @@
   },
   "files": [
     "dist",
+    "patches",
     "README.md"
   ]
 }
