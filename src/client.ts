@@ -766,8 +766,22 @@ export class AlexaClient {
     });
     const data = (await this.getFromAppApi(
       `/api/np/player?${q.toString()}`
-    )) as { taskSessionId?: string; [key: string]: unknown };
-    return data ?? {};
+    )) as { taskSessionId?: string; playerInfo?: { taskSessionId?: string }; [key: string]: unknown };
+
+    // taskSessionId may be at root or nested inside playerInfo
+    let taskSessionId: string | undefined =
+      data?.taskSessionId ?? data?.playerInfo?.taskSessionId;
+
+    // Fallback: list-media-sessions returns active sessions with taskSessionId
+    if (!taskSessionId) {
+      const sq = new URLSearchParams({ deviceSerialNumber, deviceType });
+      const sessions = (await this.getFromAppApi(
+        `/api/np/list-media-sessions?${sq.toString()}`
+      )) as { mediaSessionList?: Array<{ taskSessionId?: string }> };
+      taskSessionId = sessions?.mediaSessionList?.[0]?.taskSessionId;
+    }
+
+    return { ...(data ?? {}), ...(taskSessionId ? { taskSessionId } : {}) };
   }
 
   /** Media: list active media sessions. */
@@ -799,9 +813,9 @@ export class AlexaClient {
     if (!typeName) throw new Error(`Unknown media command: ${command}`);
 
     const controllerEndpoint = {
-      __type: "NPSingletonEndpoint:1",
+      __type: "NPSingletonEndpoint:http://internal.amazon.com/coral/com.amazon.dee.web.coral.model/",
       id: {
-        __type: "NPEndpointIdentifier:1",
+        __type: "NPEndpointIdentifier:http://internal.amazon.com/coral/com.amazon.dee.web.coral.model/",
         deviceSerialNumber: device.serialNumber,
         deviceType: device.deviceType,
       },

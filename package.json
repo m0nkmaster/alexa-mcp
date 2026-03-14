@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "TEST_INTEGRATION=1 vitest run",
-    "test:e2e": "TEST_INTEGRATION=1 vitest run test/e2e.test.ts"
+    "test:e2e": "TEST_INTEGRATION=1 vitest run test/e2e.test.ts",
+    "test:e2e:devices": "TEST_INTEGRATION=1 vitest run test/e2e-devices.test.ts"
   },
   "keywords": [
     "alexa",
