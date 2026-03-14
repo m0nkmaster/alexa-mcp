@@ -137,6 +137,92 @@ Track of scenarios we want to achieve via the Alexa MCP server/CLI. Each story i
 
 ---
 
+## 11. Set volume to 50% on Kitchen Echo ✅
+
+**As a** user  
+**I want to** set the volume on my Kitchen Echo to 50%  
+**So that** I can control the volume without walking over to it.
+
+**Acceptance criteria**
+
+- Can target an Echo device by name. ✅
+- Volume is set to specified percentage (0-100). ✅
+- Works consistently for the authenticated account. ✅
+
+**Implementation notes**
+
+- API: `GET /api/devices/{deviceType}/{serial}/audio/v2/volume` (get), `PUT .../audio/v2/speakerVolume` (set)
+- MCP tools: `alexa_get_volume`, `alexa_set_volume`
+- CLI: `alexa-mcp volume -d Kitchen` (get), `alexa-mcp volume 50 -d Kitchen` (set)
+- **Status: Done** (implemented in `src/client.ts`, `src/mcp-tools.ts`, `src/cli.ts`)
+
+---
+
+## 12. Is anything playing in the lounge? ✅
+
+**As a** user  
+**I want to** know what's currently playing on my lounge Echo  
+**So that** I can see the track name, artist, and playback state.
+
+**Acceptance criteria**
+
+- Can query now-playing state for a specific device. ✅
+- Returns: track name, artist, album (if available), playback state (playing/paused), volume. ✅
+- Works for Amazon Music, Spotify, etc. ✅
+
+**Implementation notes**
+
+- API: `GET /api/np/player?deviceSerialNumber=...&deviceType=...` with `list-media-sessions` fallback
+- MCP tool: `alexa_now_playing` — returns `nowPlaying.title`, `.artist`, `.album`, `.state`, `.volume`, `taskSessionId`
+- CLI: `alexa-mcp now-playing -d Lounge`
+- **Status: Done** (implemented in `src/client.ts`, `src/mcp-tools.ts`, `src/cli.ts`)
+
+---
+
+## 16. What's the temperature in the living room?
+
+**As a** user  
+**I want to** know the current temperature in my living room  
+**So that** I can decide whether to adjust the heating.
+
+**Acceptance criteria**
+
+- Can query temperature from Echo devices with built-in temperature sensors.
+- Returns temperature in Celsius (or configurable).
+- Works for devices with temperature capability.
+
+**Implementation notes**
+
+- API: `GET /api/airquality/history` with `sensorType: "Temperature"`
+- HAR evidence: `alexa-temperatures.har`
+- Need new MCP tool: `alexa_get_temperature`
+- CLI: `alexa-mcp temperature -d Living Room`
+
+---
+
+## 17. Get detailed device state (lights, switches, brightness) ✅
+
+**As a** user  
+**I want to** see the current state of all my smart home devices  
+**So that** I can know what's on/off and at what brightness level.
+
+**Acceptance criteria**
+
+- Can list all appliances with their current state (on/off, brightness %). ✅
+- Returns friendly name, entityId, state, and brightness where applicable. ✅
+- Works for lights, plugs, switches. ✅
+
+**Implementation notes**
+
+- List: `alexa_list_appliances` returns all devices with `endpointId` and `friendlyName`
+- Get brightness: `alexa_get_brightness_by_name` with `{ "name": "Lounge lamp" }` — queries GraphQL live state
+- Set brightness: `alexa_set_brightness_by_name` with `{ "name": "Lounge lamp", "brightness": 50 }`
+- CLI: `alexa-mcp brightness --name "Lounge lamp"` (get), `alexa-mcp brightness 50 --name "Lounge lamp"` (set)
+- Uses GraphQL `getBrightnessState` query for `endpointId`-based devices; phoenix fallback for opaque IDs
+- **Status: Done** (implemented in `src/client.ts`, `src/mcp-tools.ts`, `src/cli.ts`)
+
+---
+
 ## Suggested additional scenarios
 
 Stories that fit current or planned API surface and common use cases:
@@ -160,19 +246,19 @@ Stories that fit current or planned API surface and common use cases:
 
 ## Summary
 
-
 | Status                  | Count     | Notes                                                                    |
 | ----------------------- | --------- | ------------------------------------------------------------------------ |
-| **Supported today**     | 1–4, 6, 7 | Via switch/control, speak/announce, command, media control, now-playing. |
+| **Supported today**     | 1–4, 6, 7, 11, 12, 17 | Via switch/control, speak/announce, command, media control, now-playing, volume, brightness. |
 | **Partially supported** | 5         | Timer creation not yet implemented (API gap).                            |
-| **Suggested**           | 8–17      | Alarms, routines, volume, DND, reminders, temperature, shopping list.    |
+| **In progress**         | 16        | Temperature sensor — HAR captured, implementation pending.               |
+| **Suggested**           | 8–10, 13–15, 18 | Alarms, routines, DND, reminders, shopping list.                         |
 
 
 ---
 
 ## Document info
 
-- **Last updated:** 2026-03-09  
+- **Last updated:** 2026-03-14  
 - **Source:** User scenarios + README + docs/API.md  
-- **Next:** Prioritise timer/reminder API capture and alarm auth; then volume/DND/temperature tools if desired.
+- **Next:** Temperature sensor tool (story #16); timer/reminder API capture; alarm auth.
 
