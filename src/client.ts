@@ -23,6 +23,8 @@ export interface Appliance {
   isReachable: boolean;
   /** Amazon customer ID of the account that owns this device (for profile matching) */
   deviceOwnerCustomerId?: string;
+  /** Alexa interface capabilities (e.g., Alexa.BrightnessController, Alexa.ColorTemperatureController) */
+  capabilities?: string[];
 }
 
 export interface Routine {
@@ -170,6 +172,65 @@ export class AlexaClient {
       // ignore
     }
     return [];
+  }
+
+  /** GraphQL fragment used by the Alexa app to query endpoint features/capabilities. */
+  private static readonly ENDPOINT_FEATURES_QUERY = `query EndpointFeaturesQuery($endpointId: String!) {
+  endpoint(id: $endpointId) {
+    id
+    enablement
+    features {
+      name
+      properties {
+        __typename
+        name
+        type
+        accuracy
+        ... on Brightness { brightnessStateValue }
+        ... on ColorTemperature { colorTemperatureInKelvinStateValue }
+        ... on Power { powerStateValue }
+        ... on Reachability { reachabilityStatusValue }
+      }
+      __typename
+      name
+      instance
+    }
+    __typename
+  }
+}`;
+
+  /**
+   * Fetch capabilities for a set of endpoint IDs using batched GraphQL endpoint() queries.
+   * Returns a map of endpoint ID to array of feature names (e.g. "brightness", "colorTemperature", "power").
+   */
+  private async fetchEndpointCapabilities(endpointIds: string[]): Promise<Map<string, string[]>> {
+    const capabilitiesMap = new Map<string, string[]>();
+    if (endpointIds.length === 0) return capabilitiesMap;
+
+    try {
+      const batch = endpointIds.map((endpointId) => ({
+        operationName: "EndpointFeaturesQuery",
+        variables: { endpointId },
+        query: AlexaClient.ENDPOINT_FEATURES_QUERY,
+      }));
+
+      const results = await this.postGraphqlBatch(batch);
+
+      for (const result of results) {
+        const r = result as { data?: { endpoint?: { id?: string; features?: Array<{ name?: string }> } } };
+        const endpoint = r?.data?.endpoint;
+        if (!endpoint?.id || !endpoint.features) continue;
+        const features = endpoint.features
+          .map((f) => f.name)
+          .filter((n): n is string => !!n && n !== "endpointHealth" && n !== "connectivity");
+        if (features.length > 0) {
+          capabilitiesMap.set(endpoint.id, features);
+        }
+      }
+    } catch {
+      // ignore — capabilities are best-effort
+    }
+    return capabilitiesMap;
   }
 
   /**
@@ -432,11 +493,13 @@ export class AlexaClient {
     const layoutIds = rawLayoutKeys
       .filter((id) => id.startsWith("amzn1.") || /^[0-9a-f-]{36}$/i.test(id))
       .map((id) => (id.startsWith("amzn1.") ? id : `amzn1.alexa.endpoint.${id}`));
+    const capabilitiesMap = await this.fetchEndpointCapabilities(layoutIds);
 
     const parseSmarthomeV2Response = (
       data: unknown,
       endpointIds?: string[],
-      friendlyNames?: Map<string, string>
+      friendlyNames?: Map<string, string>,
+      capabilities?: Map<string, string[]>
     ): Appliance[] => {
       const d = data as {
         endpoints?: Array<{
@@ -455,6 +518,7 @@ export class AlexaClient {
         const endpointId = endpointIds && i < endpointIds.length ? endpointIds[i] : undefined;
         const friendlyName =
           (endpointId && friendlyNames?.get(endpointId)) ?? serial;
+        const caps = endpointId && capabilities ? capabilities.get(endpointId) : undefined;
         return {
           entityId: endpointId ?? serial,
           endpointId,
@@ -463,6 +527,7 @@ export class AlexaClient {
           applianceTypes: deviceType ? [deviceType] : [],
           isReachable: true,
           deviceOwnerCustomerId: ep.deviceOwnerCustomerId,
+          capabilities: caps,
         };
       });
     };
@@ -481,13 +546,14 @@ export class AlexaClient {
         friendlyName: friendlyNames.get(endpointId) ?? endpointId,
         applianceTypes: [] as string[],
         isReachable: true,
+        capabilities: capabilitiesMap.get(endpointId),
       }));
     }
 
     let appliances: Appliance[];
     if (useLayoutIds) {
       const friendlyNames = await this.fetchFriendlyNames(layoutIds);
-      appliances = parseSmarthomeV2Response(r.data, layoutIds, friendlyNames);
+      appliances = parseSmarthomeV2Response(r.data, layoutIds, friendlyNames, capabilitiesMap);
     } else if (layoutIds.length > 0) {
       const friendlyNames = await this.fetchFriendlyNames(layoutIds);
       appliances = layoutIds.map((endpointId) => ({
@@ -497,15 +563,17 @@ export class AlexaClient {
         friendlyName: friendlyNames.get(endpointId) ?? endpointId,
         applianceTypes: [] as string[],
         isReachable: true,
+        capabilities: capabilitiesMap.get(endpointId),
       }));
     } else {
-      appliances = parseSmarthomeV2Response(r.data);
+      appliances = parseSmarthomeV2Response(r.data, undefined, undefined, capabilitiesMap);
     }
     return appliances.map((a) => ({
       endpointId: a.endpointId,
       entityId: a.entityId,
       friendlyName: a.friendlyName,
       isReachable: a.isReachable,
+      capabilities: a.capabilities,
     }));
   }
 
@@ -836,29 +904,23 @@ export class AlexaClient {
   /**
    * Get brightness state for a smart home endpoint via GraphQL.
    * Returns brightness (0–100) and power state when available.
+   * Uses the same endpoint() query shape as the Alexa mobile app.
    */
   async getBrightnessState(endpointId: string): Promise<{ brightness?: number; powerState?: string }> {
     try {
       const result = (await this.postGraphql({
-        operationName: "GetBrightnessState",
+        operationName: "EndpointFeaturesQuery",
         variables: { endpointId },
-        query: `query GetBrightnessState($endpointId: String!) {
-          endpoint(id: $endpointId) {
-            id
-            features {
-              name
-              ... on BrightnessFeature { brightness { value } }
-              ... on PowerFeature { powerState { value } }
-            }
-          }
-        }`,
+        query: AlexaClient.ENDPOINT_FEATURES_QUERY,
       })) as {
         data?: {
           endpoint?: {
             features?: Array<{
               name?: string;
-              brightness?: { value?: number };
-              powerState?: { value?: string };
+              properties?: Array<{
+                brightnessStateValue?: number;
+                powerStateValue?: string;
+              }>;
             }>;
           };
         };
@@ -867,8 +929,10 @@ export class AlexaClient {
       let brightness: number | undefined;
       let powerState: string | undefined;
       for (const f of features) {
-        if (f.brightness?.value !== undefined) brightness = f.brightness.value;
-        if (f.powerState?.value !== undefined) powerState = f.powerState.value;
+        for (const p of f.properties ?? []) {
+          if (p.brightnessStateValue !== undefined) brightness = p.brightnessStateValue;
+          if (p.powerStateValue !== undefined) powerState = p.powerStateValue;
+        }
       }
       return { brightness, powerState };
     } catch {

@@ -170,9 +170,10 @@ describe("AlexaClient", () => {
         data: {
           endpoint: {
             id: "amzn1.alexa.endpoint.abc123",
+            enablement: "ENABLED",
             features: [
-              { name: "brightness", brightness: { value: 75 } },
-              { name: "power", powerState: { value: "ON" } },
+              { name: "brightness", properties: [{ brightnessStateValue: 75, __typename: "Brightness" }] },
+              { name: "power", properties: [{ powerStateValue: "ON", __typename: "Power" }] },
             ],
           },
         },

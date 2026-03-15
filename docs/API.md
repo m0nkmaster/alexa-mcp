@@ -190,7 +190,7 @@ Used for catalog when building a new routine, not for running.
 
 ## 5. Smart home
 
-Base: **eu-api-alexa.{tld}**.
+Base: **eu-api-alexa.{tld}**. Smart home control uses **GraphQL** (`/nexus/v1/graphql`) with `amzn1.alexa.endpoint.*` IDs.
 
 ### 5.1 List endpoints (devices)
 
@@ -203,9 +203,9 @@ Base: **eu-api-alexa.{tld}**.
 - **Request body:** `{ "endpointContexts": ["GROUP"] }`.
 - **Response:** `{ "endpoints": [ { "__type": "DmsEndpoint", "identifier", "deviceType", "deviceSerialNumber", "serialNumber", "encryptedAccountName", "deviceOwnerCustomerId", ... } ] }`.  
 Names may be encrypted; use `serialNumber` or identifier for display.  
-**Note:** This API does not return `amzn1.alexa.endpoint.{uuid}`; those come from GraphQL/layout flows (see below).
+**Note:** This API does not return `amzn1.alexa.endpoint.{uuid}`; those come from the layouts endpoint (§5.2) or GraphQL.
 
-### 5.2 Control UI metadata (layouts)
+### 5.2 Layout keys (endpoint UUID discovery)
 
 
 | Endpoint                                         | Method |
@@ -213,34 +213,179 @@ Names may be encrypted; use `serialNumber` or identifier for display.
 | `/api/smarthome/v1/presentation/devices/control` | GET    |
 
 
-- **Response:** `{ "layouts": { "{uuid}": { "type", "template": { "header": { "primaryItem": { "interfaceName": "Alexa.PowerController", ... } }, "secondary": { "items": [{ "interfaceName": "Alexa.BrightnessController", ... }] }, ... } } } }`. Maps layout IDs to capabilities.
+- **Response:** `{ "layouts": { "{uuid}": { "type", "template": ... }, ... }, "results": number }`.
+- **Purpose:** Returns endpoint UUIDs as layout keys. Convert UUID keys to `amzn1.alexa.endpoint.{uuid}` for GraphQL.
+- **Note:** Template data (`type: "Default"` with capabilities) was observed in older HAR captures but current API returns `type: "None"` with `template: null`. **Do not rely on this endpoint for capability information** — use GraphQL `endpoint()` query (§5.4) instead.
 
-### 5.3 Control: power and brightness (GraphQL)
+### 5.3 Device groups (rooms/spaces)
 
+
+| Endpoint             | Method |
+| -------------------- | ------ |
+| `/api/phoenix/group` | GET    |
+
+
+- **Response:** `{ "applianceGroups": [ { "name": "Kitchen", "groupId": "...", "type": "SPACE", "chrEndpoints": [ { "entityId": "{uuid}" } ] } ] }`.
+- `chrEndpoints[].entityId` are UUIDs; prefix with `amzn1.alexa.endpoint.` for GraphQL control.
+
+### 5.4 GraphQL: endpoint state and capabilities (query)
+
+All GraphQL requests go to:
 
 | Endpoint            | Method |
 | ------------------- | ------ |
 | `/nexus/v1/graphql` | POST   |
 
+**Required headers** (in addition to Cookie + csrf):
 
-- **Headers:** Cookie, csrf, Content-Type: application/json, Accept.
-- **Body:** GraphQL mutation with variables.
+| Header                    | Value                                   |
+| ------------------------- | --------------------------------------- |
+| `x-amzn-client`          | `AlexaApp`                              |
+| `x-amzn-build-version`   | `2.2.706594`                            |
+| `x-amzn-os-name`         | `ios`                                   |
+| `x-amzn-devicetype`      | `phone`                                 |
+| `x-amzn-devicetype-id`   | `A2IVLV5VM2W81`                         |
+| `x-amzn-marketplace-id`  | `A1F83G8C2ARO7P`                        |
+| `User-Agent`             | `Alexa/2.2.706594 CFNetwork/... Darwin/...` |
 
-**Power (turn on / turn off / toggle):**
+**Endpoint features query** — returns capabilities AND current state for a device:
 
-- **Mutation:** `updatePowerFeatureForEndpoints` or `togglePowerFeatureForEndpoint`.
-- **Variables:** `featureControlRequests: [ { "endpointId": "amzn1.alexa.endpoint.{uuid}", "featureName": "power", "featureOperationName": "turnOn" | "turnOff" } ]`.  
-Endpoint IDs are `amzn1.alexa.endpoint.{uuid}` (from app state/GraphQL/layout, not from smarthome/v2/endpoints response).
+```graphql
+query EndpointFeaturesQuery($endpointId: String!) {
+  endpoint(id: $endpointId) {
+    id
+    enablement
+    features {
+      name
+      properties {
+        __typename
+        name
+        type
+        accuracy
+        ... on Brightness { brightnessStateValue }
+        ... on ColorTemperature { colorTemperatureInKelvinStateValue timeOfSample timeOfLastChange }
+        ... on Power { powerStateValue }
+        ... on Reachability { reachabilityStatusValue }
+      }
+      __typename
+      name
+      instance
+    }
+    __typename
+  }
+}
+```
+
+- **Variables:** `{ "endpointId": "amzn1.alexa.endpoint.{uuid}" }`
+- **Response:** Features array with names like `power`, `brightness`, `colorTemperature`, `connectivity`, `endpointHealth`, `commissionable`. Each feature's `properties` contain current state values.
+- **Batching:** Send an array of operations in one POST to query multiple endpoints at once.
+
+Example response:
+```json
+{
+  "data": {
+    "endpoint": {
+      "id": "amzn1.alexa.endpoint.e8a151a4-...",
+      "enablement": "ENABLED",
+      "features": [
+        { "name": "colorTemperature", "properties": [{ "colorTemperatureInKelvinStateValue": 4000 }] },
+        { "name": "power", "properties": [{ "powerStateValue": "ON" }] },
+        { "name": "brightness", "properties": [{ "brightnessStateValue": 92 }] },
+        { "name": "connectivity", "properties": [{ "reachabilityStatusValue": "OK" }] }
+      ]
+    }
+  }
+}
+```
+
+**Friendly name query** — resolve endpoint ID to display name:
+
+```graphql
+query ControlPageBanner($endpointId: String!) {
+  endpoint(id: $endpointId) {
+    id
+    friendlyNameObject { value { text __typename } __typename }
+    __typename
+  }
+}
+```
+
+### 5.5 GraphQL: control (mutations)
+
+All mutations use `setEndpointFeatures` via `/nexus/v1/graphql`.
+
+**Power (turn on / turn off):**
+
+```graphql
+mutation setPower($endpointId: String, $featureOperationName: FeatureOperationName!) {
+  setEndpointFeatures(setEndpointFeaturesInput: {
+    featureControlRequests: [{
+      endpointId: $endpointId,
+      featureName: power,
+      featureOperationName: $featureOperationName
+    }]
+  }) {
+    featureControlResponses { code endpointId featureOperationName __typename }
+    errors { code message featureOperationName __typename }
+    __typename
+  }
+}
+```
+- **Variables:** `{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "featureOperationName": "turnOn" | "turnOff" }`
 
 **Brightness:**
 
-- **Mutation:** `setBrightness`.
-- **Variables:** `{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "value": 0–100 }`.
-- **Request shape:** `featureControlRequests: [ { endpointId, featureName: "brightness", featureOperationName: "setBrightness", payload: { brightness: value } } ]`.
+```graphql
+mutation setBrightness($featureControlRequests: [FeatureControlRequestInput!]!) {
+  setBrightness(featureControlRequests: $featureControlRequests)
+}
+```
+- **Variables:** `{ "featureControlRequests": [{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "featureName": "brightness", "featureOperationName": "setBrightness", "payload": { "brightness": 0–100 } }] }`
 
-**Mapping v2 → GraphQL endpoint IDs:** Use GraphQL queries such as `getEndpointState` (variables: `endpointId`, `latencyTolerance`) or layout/control flows to obtain `amzn1.alexa.endpoint.`* IDs.
+**Color temperature:**
 
-### 5.4 Temperature and IAQ history (Echo built-in sensors)
+```graphql
+mutation setColorTemperature($endpointId: String!, $colorTemperatureInKelvin: Int!) {
+  setEndpointFeatures(setEndpointFeaturesInput: {
+    featureControlRequests: [{
+      endpointId: $endpointId,
+      featureName: colorTemperature,
+      featureOperationName: setColorTemperature,
+      payload: { colorTemperatureInKelvin: $colorTemperatureInKelvin }
+    }]
+  }) {
+    featureControlResponses { code endpointId featureOperationName __typename }
+    errors { code message featureOperationName __typename }
+    __typename
+  }
+}
+```
+- **Variables:** `{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "colorTemperatureInKelvin": 2000–6500 }`
+- **Response:** `featureControlResponses[].code` = `"SUCCESS"` on success.
+
+### 5.6 Legacy phoenix control (non-GraphQL)
+
+
+| Endpoint             | Method |
+| -------------------- | ------ |
+| `/api/phoenix/state` | PUT    |
+
+
+- **Purpose:** Fallback for appliances without `amzn1.alexa.endpoint.*` IDs. Prefer GraphQL (§5.5).
+- **Request body:** `{ "controlRequests": [{ "entityId": "...", "entityType": "APPLIANCE", "parameters": { "action": "turnOn" | "turnOff" | "setBrightness", "brightness": 0–100 } }] }`.
+
+### 5.7 Control page (device detail)
+
+
+| Endpoint                                                                              | Method |
+| ------------------------------------------------------------------------------------- | ------ |
+| `/v1/controlPage/{endpointUuid}?moleculesVersion=5&presentationFormat=NoCodeSchemaV1` | GET    |
+
+
+- **Purpose:** Full device UI layout as used by the Alexa app device detail page. Returns control molecules/schema.
+- **Note:** Often returns 304 (cached). Not currently used in this codebase but documented for reference.
+
+### 5.8 Temperature and IAQ history (Echo built-in sensors)
 
 Entity IDs are **ENTITY**-type UUIDs from **phoenix/state**, not appliance DSNs.
 
@@ -299,7 +444,8 @@ The app does **not** let you pick which Echo answers; the request carries the **
 - **Body:** Multipart with event: **Header** `Alexa.Input.Text`, `TextMessage`; **Payload** `{ "text": "..." }` (the typed phrase). Context parts (speaker, SpeechSynthesizer, playback, alerts) as in AVS.
 - **Response:** Multipart with directives; e.g. **Speak** (TTS reply), then **RequestProcessingComplete**.
 
-“Say something” (TTS to one chosen Echo) and “Announce to all” are not yet fully isolated in HAR; may use `POST /api/behaviors/preview` with Alexa.Speak or similar — capture when needed.
+**TTS to specific Echo:** `POST /api/behaviors/preview` with `type: "Alexa.Speak"` and `operationPayload: { deviceType, deviceSerialNumber, customerId, locale, textToSpeak }`. Implemented.  
+**Announce to all:** `POST /api/behaviors/preview` with `type: "AlexaAnnouncement"` and `operationPayload: { content: [{ locale, display: { title, body }, speak: { type: "text", value } }], target: { customerId } }`. Implemented.
 
 ---
 
@@ -423,21 +569,28 @@ Same base (eu-api-alexa.{tld}) unless noted. Request/response shapes not fully s
 
 ---
 
-## 11. Known gaps
+## 11. Resolved (previously gaps)
 
+| Area                         | Resolution                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **US/Global base URL**       | Confirmed `na-api-alexa.amazon.com` (§1.4). Added to config.                                                 |
+| **Say something / Announce** | `POST /api/behaviors/preview` with `Alexa.Speak` (TTS) and `AlexaAnnouncement` (announce all). Implemented. |
+| **Media transport**          | All commands confirmed and implemented: play, pause, resume, stop, next, previous (§8.2).                    |
+| **Device capabilities**      | GraphQL `endpoint()` query returns features array (§5.4). Implemented via batched queries in `listAppliances`. |
+| **Color temperature**        | `setColorTemperature` mutation documented (§5.5). GraphQL query confirmed from HAR. Not yet implemented in code. |
 
-| Area                         | Missing                                                                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **US/Global base URL**       | Host for amazon.com (e.g. na-api-alexa.amazon.com or pitangui) — capture HAR with app signed in to amazon.com.                             |
-| **Say something / Announce** | Whether `POST /api/behaviors/preview` with Alexa.Speak / AlexaAnnouncement or another path; capture “Say something” and “Announce to all”. |
-| **Reminders**                | List/create endpoints (e.g. `/v1/alerts/reminders` on api.eu.amazonalexa.com).                                                             |
-| **Timers**                   | List/create/update/cancel timers.                                                                                                          |
-| **Alarms auth**              | Whether api.eu.amazonalexa.com uses cookie/CSRF or bearer.                                                                                 |
-| **Media: start playback**    | Queue-and-play / play by contentToken from card.                                                                                           |
-| **Media: other transport**   | Confirm NPPlayCommand, NPNextCommand, NPPreviousCommand, NPStopCommand on control-media-session.                                           |
-| **Activity / voice history** | Polling for Alexa reply after Ask (two-way); document if needed for MCP. Voice commands via `command` / behaviors/preview are fire-and-forget — we do not receive Alexa's verbal response (e.g. "Can't control for other account"). Prefer direct control (`control_by_pattern`, `control_appliance`) for smart home to avoid profile issues. |
+## 12. Known gaps
+
+| Area                         | Missing                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Reminders**                | List/create endpoints (e.g. `/v1/alerts/reminders` on api.eu.amazonalexa.com).                               |
+| **Timers**                   | List/create/update/cancel timers.                                                                            |
+| **Alarms auth**              | Whether api.eu.amazonalexa.com uses cookie/CSRF or bearer.                                                   |
+| **Media: start playback**    | Queue-and-play / play by contentToken from card.                                                             |
+| **Color control (RGB)**      | Full RGB color via `Alexa.ColorController` — mutation shape not yet captured.                                 |
+| **Activity / voice history** | Voice commands are fire-and-forget — no verbal response returned. Prefer direct GraphQL control for smart home. |
 
 
 ---
 
-*Evidence: HAR captures (UK) — alexa-devices-all-actions, alexa-090325, alexa-routine, alexa-play-stop, alexa-message, alexa-temperatures. Last consolidated: 2026-03-09.*
+*Evidence: HAR captures (UK) — alexa-devices-all-actions, alexa-090325, alexa-routine, alexa-play-stop, alexa-message, alexa-temperatures, alexa-kitchen-spot. Last consolidated: 2026-03-15.*
