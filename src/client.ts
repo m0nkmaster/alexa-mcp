@@ -113,13 +113,16 @@ export class AlexaClient {
         const prefix = opts.errorPrefix ?? "API error ";
         throw new Error(`${prefix}${res.status}: ${text.slice(0, 200)}`);
       }
-      return {} as T;
+      return undefined as T;
     }
-    if (!text.trim()) return {} as T;
+    if (!text.trim()) return undefined as T;
     try {
       return JSON.parse(text) as T;
-    } catch {
-      return {} as T;
+    } catch (e) {
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] Failed to parse response as JSON:`, e);
+      }
+      return undefined as T;
     }
   }
 
@@ -168,8 +171,10 @@ export class AlexaClient {
       if (layouts && typeof layouts === "object") {
         return Object.keys(layouts);
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] fetchLayouts failed:`, e);
+      }
     }
     return [];
   }
@@ -227,8 +232,10 @@ export class AlexaClient {
           capabilitiesMap.set(endpoint.id, features);
         }
       }
-    } catch {
-      // ignore — capabilities are best-effort
+    } catch (e) {
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] fetchEndpointCapabilities failed:`, e);
+      }
     }
     return capabilitiesMap;
   }
@@ -335,27 +342,41 @@ export class AlexaClient {
   ): Promise<void> {
     if (requests.length === 0) return;
 
-    // Build inline GraphQL array syntax like the working single mutations
-    const requestsGraphQL = requests.map((req) => {
+    // Build featureControlRequests array using GraphQL variables to avoid injection
+    const featureControlRequests = requests.map((req) => {
       if (req.action === "turnOn" || req.action === "turnOff") {
-        return `{endpointId: "${req.endpointId}", featureName: power, featureOperationName: ${req.action}}`;
+        return {
+          endpointId: req.endpointId,
+          featureName: "power",
+          featureOperationName: req.action,
+        };
       } else if (req.action === "setBrightness") {
         if (req.brightness === undefined) throw new Error("brightness required for setBrightness");
-        return `{endpointId: "${req.endpointId}", featureName: brightness, featureOperationName: setBrightness, payload: {brightness: ${req.brightness}}}`;
+        return {
+          endpointId: req.endpointId,
+          featureName: "brightness",
+          featureOperationName: "setBrightness",
+          payload: { brightness: req.brightness },
+        };
       } else if (req.action === "setColorTemperature") {
         if (req.colorTemperatureInKelvin === undefined) throw new Error("colorTemperatureInKelvin required for setColorTemperature");
-        return `{endpointId: "${req.endpointId}", featureName: colorTemperature, featureOperationName: setColorTemperature, payload: {colorTemperatureInKelvin: ${req.colorTemperatureInKelvin}}}`;
+        return {
+          endpointId: req.endpointId,
+          featureName: "colorTemperature",
+          featureOperationName: "setColorTemperature",
+          payload: { colorTemperatureInKelvin: req.colorTemperatureInKelvin },
+        };
       } else {
         throw new Error(`Unsupported action: ${req.action}`);
       }
-    }).join(', ');
+    });
 
     await this.postGraphql({
       operationName: "batchSetEndpointFeatures",
-      variables: {},
-      query: `mutation batchSetEndpointFeatures {
+      variables: { featureControlRequests },
+      query: `mutation batchSetEndpointFeatures($featureControlRequests: [FeatureControlRequest!]!) {
   setEndpointFeatures(setEndpointFeaturesInput: {
-    featureControlRequests: [${requestsGraphQL}]
+    featureControlRequests: $featureControlRequests
   }) {
     featureControlResponses { 
       code 
@@ -682,6 +703,9 @@ export class AlexaClient {
 
   /** Resolve smart home device by friendly name (case-insensitive partial match). Prefer direct GraphQL control. */
   async resolveApplianceByName(name: string): Promise<Appliance | null> {
+    if (!name || !name.trim()) {
+      throw new Error("Name cannot be empty. Provide a device name like 'Living room light'.");
+    }
     const appliances = await this.listAppliances();
     const q = name.toLowerCase().trim();
     const match = appliances.find((a) => {
@@ -697,6 +721,9 @@ export class AlexaClient {
    * "lights" also matches "light" and vice versa. Returns all matches for room/group control.
    */
   async resolveAppliancesByPattern(pattern: string): Promise<Appliance[]> {
+    if (!pattern || !pattern.trim()) {
+      throw new Error("Pattern cannot be empty. Provide a pattern like 'kitchen lights'.");
+    }
     const appliances = await this.listAppliances();
     const words = pattern.toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (words.length === 0) return [];
@@ -1176,7 +1203,10 @@ export class AlexaClient {
         }
       }
       return { brightness, colorTemperatureInKelvin, powerState };
-    } catch {
+    } catch (e) {
+      if (process.env.ALEXA_DEBUG) {
+        console.error(`[alexa-mcp] getBrightnessState failed for ${endpointId}:`, e);
+      }
       return {};
     }
   }
