@@ -364,15 +364,16 @@ program
 
 program
   .command("control <entityId> <action>")
-  .description("Control smart home device (turnOn, turnOff, setBrightness)")
+  .description("Control smart home device (turnOn, turnOff, setBrightness, setColorTemperature)")
   .option("-b, --brightness <0-100>", "Brightness for setBrightness", (v) => parseInt(v, 10))
-  .action(async (entityId: string, action: string, opts: { brightness?: number }) => {
+  .option("-k, --kelvin <2000-6500>", "Color temperature in Kelvin for setColorTemperature", (v) => parseInt(v, 10))
+  .action(async (entityId: string, action: string, opts: { brightness?: number; kelvin?: number }) => {
     const cfg = getAuthConfig();
     if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const validActions = ["turnOn", "turnOff", "setBrightness"];
+    const validActions = ["turnOn", "turnOff", "setBrightness", "setColorTemperature"];
     if (!validActions.includes(action)) {
       console.error(`Action must be one of: ${validActions.join(", ")}`);
       process.exit(1);
@@ -381,11 +382,16 @@ program
       console.error("--brightness required for setBrightness");
       process.exit(1);
     }
+    if (action === "setColorTemperature" && opts.kelvin === undefined) {
+      console.error("--kelvin required for setColorTemperature");
+      process.exit(1);
+    }
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     await client.controlAppliance(
       entityId,
-      action as "turnOn" | "turnOff" | "setBrightness",
-      opts.brightness
+      action as "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+      opts.brightness,
+      opts.kelvin
     );
     console.log(`Done: ${action} ${entityId}`);
   });
@@ -522,6 +528,100 @@ program
     }
     await client.controlAppliance(eid, "setBrightness", b);
     console.log(`Brightness set to ${b}% on ${app.friendlyName}`);
+  });
+
+program
+  .command("color-temp")
+  .description("Get or set color temperature (2000–6500K) on a smart home light by name")
+  .argument("[kelvin]", "Color temperature in Kelvin 2000-6500 (omit to get current color temperature)", "")
+  .option("-n, --name <name>", "Light device friendly name (required)", "")
+  .action(async (kelvin: string, opts: { name: string }) => {
+    if (!opts.name) {
+      console.error("--name is required");
+      process.exit(1);
+    }
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const app = await client.resolveApplianceByName(opts.name);
+    if (!app) {
+      console.error(`Device not found: "${opts.name}". Try 'alexa-mcp appliances' to see names.`);
+      process.exit(1);
+    }
+    const eid = app.endpointId ?? app.entityId;
+    if (!eid) {
+      console.error(`No controllable endpoint for "${opts.name}"`);
+      process.exit(1);
+    }
+    if (!kelvin) {
+      const state = await client.getBrightnessState(eid);
+      console.log(JSON.stringify({ device: app.friendlyName, endpointId: eid, ...state }, null, 2));
+      return;
+    }
+    const k = parseInt(kelvin, 10);
+    if (isNaN(k) || k < 2000 || k > 6500) {
+      console.error("Color temperature must be a number between 2000 and 6500 Kelvin");
+      process.exit(1);
+    }
+    await client.controlAppliance(eid, "setColorTemperature", undefined, k);
+    console.log(`Color temperature set to ${k}K on ${app.friendlyName}`);
+  });
+
+program
+  .command("batch-control <action>")
+  .description("Batch control multiple smart home devices with same action/value. Much faster than individual calls.")
+  .argument("[entityIds...]", "Entity IDs or endpoint IDs (omit to read from stdin)")
+  .option("-b, --brightness <0-100>", "Brightness for setBrightness", (v) => parseInt(v, 10))
+  .option("-k, --kelvin <2000-6500>", "Color temperature in Kelvin for setColorTemperature", (v) => parseInt(v, 10))
+  .action(async (action: string, entityIds: string[], opts: { brightness?: number; kelvin?: number }) => {
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const validActions = ["turnOn", "turnOff", "setBrightness", "setColorTemperature"];
+    if (!validActions.includes(action)) {
+      console.error(`Action must be one of: ${validActions.join(", ")}`);
+      process.exit(1);
+    }
+    if (action === "setBrightness" && opts.brightness === undefined) {
+      console.error("--brightness required for setBrightness");
+      process.exit(1);
+    }
+    if (action === "setColorTemperature" && opts.kelvin === undefined) {
+      console.error("--kelvin required for setColorTemperature");
+      process.exit(1);
+    }
+
+    // Read entity IDs from stdin if not provided
+    if (entityIds.length === 0) {
+      const stdinData = await new Promise<string>((resolve) => {
+        let data = "";
+        process.stdin.setEncoding('utf8');
+        process.stdin.on('data', (chunk) => data += chunk);
+        process.stdin.on('end', () => resolve(data.trim()));
+      });
+      entityIds = stdinData.split('\n').filter(id => id.trim());
+    }
+
+    if (entityIds.length === 0) {
+      console.error("No entity IDs provided. Provide as arguments or via stdin.");
+      process.exit(1);
+    }
+
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const startTime = Date.now();
+    await client.batchControlAppliances(
+      entityIds,
+      action as "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+      opts.brightness,
+      opts.kelvin
+    );
+    const duration = Date.now() - startTime;
+    console.log(`Batch done: ${action} on ${entityIds.length} devices in ${duration}ms`);
   });
 
 const mediaCmd = program

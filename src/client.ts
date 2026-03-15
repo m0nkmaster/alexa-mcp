@@ -239,8 +239,9 @@ export class AlexaClient {
    */
   private async graphqlControl(
     endpointId: string,
-    action: "turnOn" | "turnOff" | "setBrightness",
-    brightness?: number
+    action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+    brightness?: number,
+    colorTemperatureInKelvin?: number
   ): Promise<void> {
     if (action === "setBrightness") {
       if (brightness === undefined) throw new Error("brightness required for setBrightness");
@@ -272,6 +273,41 @@ export class AlexaClient {
       });
       return;
     }
+    if (action === "setColorTemperature") {
+      if (colorTemperatureInKelvin === undefined) throw new Error("colorTemperatureInKelvin required for setColorTemperature");
+      await this.postGraphql({
+        operationName: "setColorTemperature",
+        variables: {
+          endpointId,
+          colorTemperatureInKelvin,
+        },
+        query: `mutation setColorTemperature($endpointId: String!, $colorTemperatureInKelvin: Int!) {
+  setEndpointFeatures(setEndpointFeaturesInput: {
+    featureControlRequests: [{
+      endpointId: $endpointId,
+      featureName: colorTemperature,
+      featureOperationName: setColorTemperature,
+      payload: { colorTemperatureInKelvin: $colorTemperatureInKelvin }
+    }]
+  }) {
+    featureControlResponses { 
+      code 
+      endpointId 
+      featureOperationName 
+      __typename 
+    }
+    errors { 
+      code 
+      message 
+      featureOperationName 
+      __typename 
+    }
+    __typename
+  }
+}`,
+      });
+      return;
+    }
     const featureOp = action === "turnOn" ? "turnOn" : "turnOff";
     await this.postGraphql({
       operationName: "setPower",
@@ -281,6 +317,61 @@ export class AlexaClient {
       },
       query:
         "mutation setPower($endpointId: String, $featureOperationName: FeatureOperationName!) { setEndpointFeatures(setEndpointFeaturesInput: {featureControlRequests: [{endpointId: $endpointId, featureName: power, featureOperationName: $featureOperationName}]}) { featureControlResponses { code endpointId featureOperationName __typename } errors { code message featureOperationName __typename } __typename } }",
+    });
+  }
+
+  /**
+   * Batch POST /nexus/v1/graphql — control multiple endpoints at once.
+   * Uses setEndpointFeatures mutation with multiple featureControlRequests.
+   * Much faster than individual requests for many devices.
+   */
+  private async graphqlBatchControl(
+    requests: Array<{
+      endpointId: string;
+      action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature";
+      brightness?: number;
+      colorTemperatureInKelvin?: number;
+    }>
+  ): Promise<void> {
+    if (requests.length === 0) return;
+
+    // Build inline GraphQL array syntax like the working single mutations
+    const requestsGraphQL = requests.map((req) => {
+      if (req.action === "turnOn" || req.action === "turnOff") {
+        return `{endpointId: "${req.endpointId}", featureName: power, featureOperationName: ${req.action}}`;
+      } else if (req.action === "setBrightness") {
+        if (req.brightness === undefined) throw new Error("brightness required for setBrightness");
+        return `{endpointId: "${req.endpointId}", featureName: brightness, featureOperationName: setBrightness, payload: {brightness: ${req.brightness}}}`;
+      } else if (req.action === "setColorTemperature") {
+        if (req.colorTemperatureInKelvin === undefined) throw new Error("colorTemperatureInKelvin required for setColorTemperature");
+        return `{endpointId: "${req.endpointId}", featureName: colorTemperature, featureOperationName: setColorTemperature, payload: {colorTemperatureInKelvin: ${req.colorTemperatureInKelvin}}}`;
+      } else {
+        throw new Error(`Unsupported action: ${req.action}`);
+      }
+    }).join(', ');
+
+    await this.postGraphql({
+      operationName: "batchSetEndpointFeatures",
+      variables: {},
+      query: `mutation batchSetEndpointFeatures {
+  setEndpointFeatures(setEndpointFeaturesInput: {
+    featureControlRequests: [${requestsGraphQL}]
+  }) {
+    featureControlResponses { 
+      code 
+      endpointId 
+      featureOperationName 
+      __typename 
+    }
+    errors { 
+      code 
+      message 
+      featureOperationName 
+      __typename 
+    }
+    __typename
+  }
+}`,
     });
   }
 
@@ -649,12 +740,13 @@ export class AlexaClient {
 
   async controlAppliance(
     entityId: string,
-    action: "turnOn" | "turnOff" | "setBrightness",
-    brightness?: number
+    action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+    brightness?: number,
+    colorTemperatureInKelvin?: number
   ): Promise<void> {
     const useGraphql = entityId.startsWith("amzn1.alexa.endpoint.");
     if (useGraphql) {
-      await this.graphqlControl(entityId, action, brightness);
+      await this.graphqlControl(entityId, action, brightness, colorTemperatureInKelvin);
       return;
     }
     const params: Record<string, unknown> = { action };
@@ -662,6 +754,11 @@ export class AlexaClient {
       if (brightness === undefined)
         throw new Error("brightness required for setBrightness");
       params.brightness = brightness;
+    }
+    if (action === "setColorTemperature") {
+      if (colorTemperatureInKelvin === undefined)
+        throw new Error("colorTemperatureInKelvin required for setColorTemperature");
+      params.colorTemperatureInKelvin = colorTemperatureInKelvin;
     }
     await this.putApp("/api/phoenix/state", {
       controlRequests: [
@@ -689,6 +786,135 @@ export class AlexaClient {
         },
       ],
     });
+  }
+
+  async setColorTemperature(entityId: string, colorTemperatureInKelvin: number): Promise<void> {
+    const useGraphql = entityId.startsWith("amzn1.alexa.endpoint.");
+    if (useGraphql) {
+      await this.graphqlControl(entityId, "setColorTemperature", undefined, colorTemperatureInKelvin);
+      return;
+    }
+    await this.putApp("/api/phoenix/state", {
+      controlRequests: [
+        {
+          entityId,
+          entityType: "APPLIANCE",
+          parameters: { action: "setColorTemperature", colorTemperatureInKelvin },
+        },
+      ],
+    });
+  }
+
+  /**
+   * Batch control multiple appliances with the same action and values.
+   * Much faster than individual controlAppliance calls for many devices.
+   */
+  async batchControlAppliances(
+    entityIds: string[],
+    action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+    brightness?: number,
+    colorTemperatureInKelvin?: number
+  ): Promise<void> {
+    if (entityIds.length === 0) return;
+
+    // Separate GraphQL and Phoenix endpoints
+    const graphqlRequests = entityIds
+      .filter(id => id.startsWith("amzn1.alexa.endpoint."))
+      .map(endpointId => ({
+        endpointId,
+        action,
+        brightness,
+        colorTemperatureInKelvin,
+      }));
+
+    const phoenixRequests = entityIds
+      .filter(id => !id.startsWith("amzn1.alexa.endpoint."))
+      .map(entityId => {
+        const params: Record<string, unknown> = { action };
+        if (action === "setBrightness" && brightness !== undefined) {
+          params.brightness = brightness;
+        }
+        if (action === "setColorTemperature" && colorTemperatureInKelvin !== undefined) {
+          params.colorTemperatureInKelvin = colorTemperatureInKelvin;
+        }
+        return {
+          entityId,
+          entityType: "APPLIANCE" as const,
+          parameters: params,
+        };
+      });
+
+    // Execute batch requests in parallel
+    const promises: Promise<void>[] = [];
+
+    if (graphqlRequests.length > 0) {
+      promises.push(this.graphqlBatchControl(graphqlRequests));
+    }
+
+    if (phoenixRequests.length > 0) {
+      promises.push(this.putApp("/api/phoenix/state", {
+        controlRequests: phoenixRequests,
+      }).then(() => {}));
+    }
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * Batch control multiple appliances with different actions/values.
+   * Maximum flexibility - each device can have different settings.
+   */
+  async batchControlAppliancesCustom(
+    requests: Array<{
+      entityId: string;
+      action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature";
+      brightness?: number;
+      colorTemperatureInKelvin?: number;
+    }>
+  ): Promise<void> {
+    if (requests.length === 0) return;
+
+    // Separate GraphQL and Phoenix endpoints
+    const graphqlRequests = requests
+      .filter(req => req.entityId.startsWith("amzn1.alexa.endpoint."))
+      .map(({ entityId, action, brightness, colorTemperatureInKelvin }) => ({
+        endpointId: entityId,
+        action,
+        brightness,
+        colorTemperatureInKelvin,
+      }));
+
+    const phoenixRequests = requests
+      .filter(req => !req.entityId.startsWith("amzn1.alexa.endpoint."))
+      .map(({ entityId, action, brightness, colorTemperatureInKelvin }) => {
+        const params: Record<string, unknown> = { action };
+        if (action === "setBrightness" && brightness !== undefined) {
+          params.brightness = brightness;
+        }
+        if (action === "setColorTemperature" && colorTemperatureInKelvin !== undefined) {
+          params.colorTemperatureInKelvin = colorTemperatureInKelvin;
+        }
+        return {
+          entityId,
+          entityType: "APPLIANCE" as const,
+          parameters: params,
+        };
+      });
+
+    // Execute batch requests in parallel
+    const promises: Promise<void>[] = [];
+
+    if (graphqlRequests.length > 0) {
+      promises.push(this.graphqlBatchControl(graphqlRequests));
+    }
+
+    if (phoenixRequests.length > 0) {
+      promises.push(this.putApp("/api/phoenix/state", {
+        controlRequests: phoenixRequests,
+      }).then(() => {}));
+    }
+
+    await Promise.all(promises);
   }
 
   /** Get full automation (includes sequence) from app API. Used for run. */
@@ -914,11 +1140,11 @@ export class AlexaClient {
   }
 
   /**
-   * Get brightness state for a smart home endpoint via GraphQL.
-   * Returns brightness (0–100) and power state when available.
+   * Get brightness and color temperature state for a smart home endpoint via GraphQL.
+   * Returns brightness (0–100), color temperature (Kelvin), and power state when available.
    * Uses the same endpoint() query shape as the Alexa mobile app.
    */
-  async getBrightnessState(endpointId: string): Promise<{ brightness?: number; powerState?: string }> {
+  async getBrightnessState(endpointId: string): Promise<{ brightness?: number; colorTemperatureInKelvin?: number; powerState?: string }> {
     try {
       const result = (await this.postGraphql({
         operationName: "EndpointFeaturesQuery",
@@ -931,6 +1157,7 @@ export class AlexaClient {
               name?: string;
               properties?: Array<{
                 brightnessStateValue?: number;
+                colorTemperatureInKelvinStateValue?: number;
                 powerStateValue?: string;
               }>;
             }>;
@@ -939,14 +1166,16 @@ export class AlexaClient {
       };
       const features = result?.data?.endpoint?.features ?? [];
       let brightness: number | undefined;
+      let colorTemperatureInKelvin: number | undefined;
       let powerState: string | undefined;
       for (const f of features) {
         for (const p of f.properties ?? []) {
           if (p.brightnessStateValue !== undefined) brightness = p.brightnessStateValue;
+          if (p.colorTemperatureInKelvinStateValue !== undefined) colorTemperatureInKelvin = p.colorTemperatureInKelvinStateValue;
           if (p.powerStateValue !== undefined) powerState = p.powerStateValue;
         }
       }
-      return { brightness, powerState };
+      return { brightness, colorTemperatureInKelvin, powerState };
     } catch {
       return {};
     }

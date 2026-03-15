@@ -144,18 +144,19 @@ export function registerAlexaTools(
     {
       title: "Control Smart Home Device",
       description:
-        "Turn on/off or set brightness of a smart home device. Use endpointId (amzn1.alexa.endpoint.*) from list_appliances for direct GraphQL control. Opaque IDs use phoenix API.",
+        "Turn on/off, set brightness, or set color temperature of a smart home device. Use endpointId (amzn1.alexa.endpoint.*) from list_appliances for direct GraphQL control. Opaque IDs use phoenix API.",
       inputSchema: z.object({
         entityId: z
           .string()
           .describe(
             "Endpoint ID (amzn1.alexa.endpoint.*) or entity ID from list_appliances. Prefer endpointId for direct control."
           ),
-        action: z.enum(["turnOn", "turnOff", "setBrightness"]),
+        action: z.enum(["turnOn", "turnOff", "setBrightness", "setColorTemperature"]),
         brightness: z.number().min(0).max(100).optional().describe("Required for setBrightness"),
+        colorTemperatureInKelvin: z.number().min(2000).max(6500).optional().describe("Required for setColorTemperature (2000-6500K)"),
       }),
     },
-    async ({ entityId, action, brightness }) => {
+    async ({ entityId, action, brightness, colorTemperatureInKelvin }) => {
       const client = await clientFactory();
       if (action === "setBrightness" && brightness === undefined) {
         return {
@@ -163,7 +164,13 @@ export function registerAlexaTools(
           isError: true,
         };
       }
-      await client.controlAppliance(entityId, action, brightness);
+      if (action === "setColorTemperature" && colorTemperatureInKelvin === undefined) {
+        return {
+          content: [{ type: "text" as const, text: "colorTemperatureInKelvin required for setColorTemperature" }],
+          isError: true,
+        };
+      }
+      await client.controlAppliance(entityId, action, brightness, colorTemperatureInKelvin);
       return {
         content: [{ type: "text" as const, text: `Done: ${action} ${entityId}` }],
       };
@@ -653,6 +660,169 @@ export function registerAlexaTools(
       title: "Get Light Brightness by Name",
       description:
         "Get the current brightness and power state of a smart home light by its friendly name. Queries GraphQL for live state.",
+      inputSchema: z.object({
+        name: z.string().describe("Light device friendly name (e.g. 'Lounge lamp', 'Bedroom light')"),
+      }),
+    },
+    async ({ name }) => {
+      const client = await clientFactory();
+      const app = await client.resolveApplianceByName(name);
+      if (!app) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Device not found: "${name}". Use list_appliances to see available device names.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const eid = app.endpointId ?? app.entityId;
+      if (!eid) {
+        return {
+          content: [{ type: "text" as const, text: `No endpoint ID for "${name}"` }],
+          isError: true,
+        };
+      }
+      const state = await client.getBrightnessState(eid);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              { device: app.friendlyName, endpointId: eid, ...state },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_batch_control_appliances",
+    {
+      title: "Batch Control Smart Home Devices",
+      description:
+        "Control multiple smart home devices with the same action and values. Much faster than individual calls for many devices. Supports both GraphQL and Phoenix endpoints.",
+      inputSchema: z.object({
+        entityIds: z.array(z.string()).describe("Array of entity IDs or endpoint IDs"),
+        action: z.enum(["turnOn", "turnOff", "setBrightness", "setColorTemperature"]),
+        brightness: z.number().min(0).max(100).optional().describe("Required for setBrightness"),
+        colorTemperatureInKelvin: z.number().min(2000).max(6500).optional().describe("Required for setColorTemperature (2000-6500K)"),
+      }),
+    },
+    async ({ entityIds, action, brightness, colorTemperatureInKelvin }) => {
+      const client = await clientFactory();
+      if (action === "setBrightness" && brightness === undefined) {
+        return {
+          content: [{ type: "text" as const, text: "brightness required for setBrightness" }],
+          isError: true,
+        };
+      }
+      if (action === "setColorTemperature" && colorTemperatureInKelvin === undefined) {
+        return {
+          content: [{ type: "text" as const, text: "colorTemperatureInKelvin required for setColorTemperature" }],
+          isError: true,
+        };
+      }
+      await client.batchControlAppliances(entityIds, action, brightness, colorTemperatureInKelvin);
+      return {
+        content: [{ type: "text" as const, text: `Batch done: ${action} on ${entityIds.length} devices` }],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_batch_control_appliances_custom",
+    {
+      title: "Batch Control Smart Home Devices (Custom)",
+      description:
+        "Control multiple smart home devices with different actions/values. Maximum flexibility - each device can have different settings.",
+      inputSchema: z.object({
+        requests: z.array(z.object({
+          entityId: z.string().describe("Entity ID or endpoint ID"),
+          action: z.enum(["turnOn", "turnOff", "setBrightness", "setColorTemperature"]),
+          brightness: z.number().min(0).max(100).optional().describe("Required for setBrightness"),
+          colorTemperatureInKelvin: z.number().min(2000).max(6500).optional().describe("Required for setColorTemperature (2000-6500K)"),
+        })).describe("Array of device control requests"),
+      }),
+    },
+    async ({ requests }) => {
+      const client = await clientFactory();
+      for (const req of requests) {
+        if (req.action === "setBrightness" && req.brightness === undefined) {
+          return {
+            content: [{ type: "text" as const, text: `brightness required for setBrightness on ${req.entityId}` }],
+            isError: true,
+          };
+        }
+        if (req.action === "setColorTemperature" && req.colorTemperatureInKelvin === undefined) {
+          return {
+            content: [{ type: "text" as const, text: `colorTemperatureInKelvin required for setColorTemperature on ${req.entityId}` }],
+            isError: true,
+          };
+        }
+      }
+      await client.batchControlAppliancesCustom(requests);
+      return {
+        content: [{ type: "text" as const, text: `Batch done: ${requests.length} custom operations` }],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_set_color_temperature_by_name",
+    {
+      title: "Set Light Color Temperature by Name",
+      description:
+        "Set the color temperature of a smart home light by its friendly name. Resolves device by name then sends setColorTemperature via GraphQL. For endpointId, use control_appliance instead.",
+      inputSchema: z.object({
+        name: z.string().describe("Light device friendly name (e.g. 'Lounge lamp', 'Bedroom light')"),
+        colorTemperatureInKelvin: z.number().int().min(2000).max(6500).describe("Color temperature in Kelvin (2000-6500K)"),
+      }),
+    },
+    async ({ name, colorTemperatureInKelvin }) => {
+      const client = await clientFactory();
+      const app = await client.resolveApplianceByName(name);
+      if (!app) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Device not found: "${name}". Use list_appliances to see available device names.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const eid = app.endpointId ?? app.entityId;
+      if (!eid) {
+        return {
+          content: [{ type: "text" as const, text: `No controllable ID for "${name}"` }],
+          isError: true,
+        };
+      }
+      await client.controlAppliance(eid, "setColorTemperature", undefined, colorTemperatureInKelvin);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Color temperature set to ${colorTemperatureInKelvin}K on ${app.friendlyName}`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_get_color_temperature_by_name",
+    {
+      title: "Get Light Color Temperature by Name",
+      description:
+        "Get the current color temperature, brightness, and power state of a smart home light by its friendly name. Queries GraphQL for live state.",
       inputSchema: z.object({
         name: z.string().describe("Light device friendly name (e.g. 'Lounge lamp', 'Bedroom light')"),
       }),

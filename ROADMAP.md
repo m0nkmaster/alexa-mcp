@@ -78,3 +78,13 @@
   - URL: https://arxiv.org/html/2408.15768v1
   - New APIs discovered: Voice history, photos/drive, user profiles
   - Confirmed our GraphQL usage matches official Alexa app behavior
+
+--
+
+- CI Pipelines
+- Wider test coverage
+- Routines
+- Cameras
+- User profiles
+- Voice history
+- Speed - slow at the moment
