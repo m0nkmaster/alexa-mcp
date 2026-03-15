@@ -1,74 +1,93 @@
-# alexa-mcp
+# Alexa MCP
 
-MCP server and CLI for Alexa devices and smart home control via the unofficial Alexa API.
+[![npm version](https://badge.fury.io/js/alexa-mcp.svg)](https://www.npmjs.com/package/alexa-mcp)
+[![CI](https://github.com/m0nkmaster/alexa-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/m0nkmaster/alexa-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Requirements
+**Control your Alexa devices and smart home from the command line or AI assistants.**
 
-- Node.js 18+
-- Amazon Alexa account (amazon.com, amazon.co.uk, or amazon.de)
+MCP server and CLI for Alexa/Echo devices and smart home control via the unofficial Alexa API. Works with Claude Desktop, Cursor, VS Code, and other MCP-compatible tools.
 
-## Setup
+## Features
 
-1. Install:
-   ```bash
-   npm install alexa-mcp          # local install
-   npm install -g alexa-mcp       # global install (adds alexa-mcp to PATH)
-   npx alexa-mcp auth             # run without installing
-   ```
+- 🎙️ **Voice & Media Control** - TTS, announcements, playback control
+- 💡 **Smart Home** - Control lights, plugs, and devices by name, pattern, or room group
+- 🤖 **Routines** - List and trigger Alexa routines
+- 🌍 **Multi-Region** - Supports US (amazon.com), UK (amazon.co.uk), and DE (amazon.de)
+- 🔌 **MCP Integration** - Use with Claude, Cursor, and other AI assistants
+- 🛠️ **CLI & Programmatic** - Command-line tool or Node.js library
 
-2. Authenticate:
-   ```bash
-   alexa-mcp auth
-   ```
-   Opens a URL (tunnel or localhost) for you to log in to Amazon. Works locally or headless (remote server) — same behaviour either way. Uses cloudflared or localtunnel automatically; no account required.
+## Quick Start
 
-   Or headless:
-   ```bash
-   alexa-mcp auth --token "Atnr|..."
-   alexa-mcp auth --token-file /path/to/token.txt
-   alexa-mcp auth --domain amazon.com   # US account (default: amazon.co.uk)
-   alexa-mcp auth --no-save             # validate token without saving
-   ```
-
-3. Config stored in `~/.alexa-mcp/config.json`. Also reads `~/.alexa-cli/config.json` or `ALEXA_REFRESH_TOKEN`.
-
-### Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `ALEXA_REFRESH_TOKEN` | Refresh token; skips config file lookup |
-| `ALEXA_DOMAIN` | Amazon domain when using env token (default: `amazon.co.uk`; options: `amazon.com`, `amazon.de`) |
-| `ALEXA_DEBUG` | Set to any value to log API request/response details to stderr |
-
-## CLI
+### Installation
 
 ```bash
-alexa-mcp auth                              # Interactive auth (browser / tunnel URL)
-alexa-mcp auth --token <token>             # Save token (headless)
-alexa-mcp auth --token-file <path>         # Read token from file
-alexa-mcp auth --domain amazon.com         # Specify Amazon domain (default: amazon.co.uk)
-alexa-mcp auth --no-save                   # Validate token without saving
-alexa-mcp auth status [--verify]           # Show auth status (--verify calls API)
-alexa-mcp auth logout                      # Remove credentials
-alexa-mcp devices                          # List Echo devices
-alexa-mcp devices --owners                 # Show device names and owner customer IDs (profile matching)
-alexa-mcp speak "Hello" -d Office          # Speak text on a specific device
-alexa-mcp announce "Dinner ready"          # Announce to all devices
-alexa-mcp command -d Office "play jazz"    # Voice command (no response returned)
-alexa-mcp groups                           # List room/space groups (Kitchen, Living room, etc.)
-alexa-mcp switch-group Kitchen off         # Turn off all lights in a group
-alexa-mcp switch-group Kitchen off --all   # Turn off ALL appliances in group (not just lights)
-alexa-mcp switch-room "kitchen lights" off # Turn off all devices matching name pattern
-alexa-mcp switch "Lounge light 2" off      # Turn off single device by name (direct control; -d for voice fallback)
-alexa-mcp appliances                       # List smart home devices (endpointId + friendlyName when available)
-alexa-mcp control <entityId> turnOn|turnOff|setBrightness [--brightness 50]
-alexa-mcp routines                         # List routines
-alexa-mcp run <automationId>               # Run a routine
-alexa-mcp now-playing -d Office            # Now-playing state (EU/UK)
-alexa-mcp media play|pause|resume|stop|next|previous -d Office  # Transport control (EU/UK)
+# Global install (recommended for CLI usage)
+npm install -g alexa-mcp
+
+# Or use without installing
+npx alexa-mcp auth
 ```
 
-**Smart home:** For "all lights in group Kitchen", use `switch-group Kitchen off` (use `groups` to list group names). For pattern matching (e.g. "kitchen lights"), use `switch-room`. Both use direct control—avoids voice profile issues. `switch` is for a single device. Voice commands (`command`) do not return Alexa's response. `switch-group` targets only lights by default; add `--all` to include all appliances. `media` commands require active playback (`resume` re-starts paused playback). See [docs/API.md](docs/API.md).
+### Authentication
+**Interactive (browser-based):**
+```bash
+alexa-mcp auth
+```
+Opens a URL for you to log in to Amazon. Works locally or on remote servers using automatic tunneling (cloudflared or localtunnel).
+
+**Headless (token-based):**
+```bash
+alexa-mcp auth --token "Atnr|..."
+alexa-mcp auth --token-file /path/to/token.txt
+alexa-mcp auth --domain amazon.com   # US account (default: amazon.co.uk)
+```
+
+Configuration is stored in `~/.alexa-mcp/config.json`.
+
+## Usage
+
+### CLI Commands
+
+**Authentication:**
+```bash
+alexa-mcp auth                    # Interactive auth
+alexa-mcp auth status [--verify]  # Check auth status
+alexa-mcp auth logout             # Remove credentials
+```
+
+**Devices & Voice:**
+```bash
+alexa-mcp devices                      # List Echo devices
+alexa-mcp speak "Hello" -d Office      # Text-to-speech on device
+alexa-mcp announce "Dinner ready"      # Announce to all devices
+alexa-mcp command -d Office "play jazz" # Voice command
+```
+
+**Smart Home:**
+```bash
+alexa-mcp groups                           # List room groups
+alexa-mcp appliances                       # List smart home devices
+alexa-mcp switch-group Kitchen off         # Turn off lights in room group
+alexa-mcp switch-room "kitchen lights" off # Turn off devices by pattern
+alexa-mcp switch "Lounge light 2" off      # Turn off single device
+alexa-mcp control <entityId> turnOn        # Direct device control
+```
+
+**Routines & Media:**
+```bash
+alexa-mcp routines                         # List routines
+alexa-mcp run <automationId>               # Run a routine
+alexa-mcp now-playing -d Office            # Show now-playing
+alexa-mcp media play|pause|next -d Office  # Media control
+```
+
+**Tips:**
+- Use `switch-group` for "all lights in [room]" (e.g., `Kitchen`)
+- Use `switch-room` for pattern matching (e.g., `"kitchen lights"`)
+- Use `switch` for single devices by exact name
+- Direct control methods avoid voice profile issues
+- See [docs/API.md](docs/API.md) for full API reference
 
 ### "Can't control – may need to switch user accounts"
 
@@ -97,42 +116,56 @@ Each Echo and smart home device has a **deviceOwnerCustomerId** (Amazon’s inte
   `alexa-mcp auth status --verify`  
   Shows “Account (deviceOwnerCustomerId): …” for the current session. Control will work when this matches the owner of the Echo and the smart home device.
 
-## MCP Server
+### Environment Variables
 
-**Cursor** (`~/.cursor/mcp.json`) or **VS Code** (`.vscode/mcp.json`):
+| Variable | Description |
+|----------|-------------|
+| `ALEXA_REFRESH_TOKEN` | Refresh token (skips config file) |
+| `ALEXA_DOMAIN` | Amazon domain: `amazon.co.uk` (default), `amazon.com`, `amazon.de` |
+| `ALEXA_DEBUG` | Enable API request/response logging |
+
+## MCP Server Setup
+
+### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
   "mcpServers": {
     "alexa": {
-      "command": "node",
-      "args": ["/path/to/alexa-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["alexa-mcp"]
     }
   }
 }
 ```
 
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+### Cursor / VS Code
+
+Edit `~/.cursor/mcp.json` or `.vscode/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "alexa": {
-      "command": "node",
-      "args": ["/path/to/alexa-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["alexa-mcp"]
     }
   }
 }
 ```
 
-**With environment variable token** (no file-based config needed):
+### Using Environment Variables
+
+Pass token directly (no config file needed):
 
 ```json
 {
   "mcpServers": {
     "alexa": {
-      "command": "node",
-      "args": ["/path/to/alexa-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["alexa-mcp"],
       "env": {
         "ALEXA_REFRESH_TOKEN": "Atnr|...",
         "ALEXA_DOMAIN": "amazon.co.uk"
@@ -142,14 +175,16 @@ Each Echo and smart home device has a **deviceOwnerCustomerId** (Amazon’s inte
 }
 ```
 
-When installed locally, use the path to `node_modules/alexa-mcp/dist/index.js`. When installed globally (`npm install -g alexa-mcp`), use `npx alexa-mcp` as the command instead of `node`:
+### Local Installation
+
+If installed locally, use the full path:
 
 ```json
 {
   "mcpServers": {
     "alexa": {
-      "command": "npx",
-      "args": ["alexa-mcp"]
+      "command": "node",
+      "args": ["/path/to/node_modules/alexa-mcp/dist/index.js"]
     }
   }
 }
