@@ -21,7 +21,6 @@ export async function runBrowserAuth(domain: Domain = "amazon.co.uk"): Promise<A
 
   let tunnel: Awaited<ReturnType<typeof startTunnel>> = null;
   let proxyOwnIp = "127.0.0.1";
-  let proxyPort = PROXY_PORT;
 
   const placeholder = createServer((_, res) => {
     res.writeHead(200);
@@ -55,12 +54,13 @@ export async function runBrowserAuth(domain: Domain = "amazon.co.uk"): Promise<A
     ...(tunnel ? { proxyTunnelUrl: tunnel.url } : {}),
   };
 
-  return new Promise(async (resolve, reject) => {
-    const url = tunnel ? tunnel.url : `http://127.0.0.1:${PROXY_PORT}`;
-    const publicIpRes = await fetch("https://api.ipify.org?format=json");
-    const publicIp = publicIpRes.ok ? (await publicIpRes.json()).ip : "unknown";
-    console.error(`Visit this URL to log in: ${url}`);
-    console.error(`Public IP: ${publicIp}\n`);
+  const url = tunnel ? tunnel.url : `http://127.0.0.1:${PROXY_PORT}`;
+  const publicIpRes = await fetch("https://api.ipify.org?format=json");
+  const publicIp = publicIpRes.ok ? (await publicIpRes.json()).ip : "unknown";
+  console.error(`Visit this URL to log in: ${url}`);
+  console.error(`Public IP: ${publicIp}\n`);
+
+  return new Promise((resolve, reject) => {
 
     alexaCookie.generateAlexaCookie(opts, (err: Error | null, result: { refreshToken?: string }) => {
       if (err && err.message.includes("Please open")) {

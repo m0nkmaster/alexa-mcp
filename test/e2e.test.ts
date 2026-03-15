@@ -23,7 +23,7 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e CLI", () => {
   });
 
   it("devices returns JSON array", async () => {
-    const { stdout, stderr, code } = await execCli(["devices"]);
+    const { stdout, code } = await execCli(["devices"]);
     expect(code).toBe(0);
     const out = stdout.trim();
     expect(() => JSON.parse(out)).not.toThrow();
@@ -41,7 +41,7 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e CLI", () => {
   });
 
   it("routines returns JSON", async () => {
-    const { stdout, stderr, code } = await execCli(["routines"]);
+    const { stdout, code } = await execCli(["routines"]);
     expect(code).toBe(0);
     const out = stdout.trim();
     expect(() => JSON.parse(out)).not.toThrow();

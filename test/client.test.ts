@@ -150,7 +150,7 @@ describe("AlexaClient", () => {
     expect(vol.volume).toBe(0);
   });
 
-  it("setVolume calls PUT with correct body", async () => {
+  it("setVolume calls POST with correct body", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(mockRes({}));
 
     await client.setVolume("A1RABVCI4QCIKC", "G090XG123", 75);
@@ -158,7 +158,7 @@ describe("AlexaClient", () => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/devices/A1RABVCI4QCIKC/G090XG123/audio/v2/speakerVolume"),
       expect.objectContaining({
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({ volume: 75 }),
       })
     );

@@ -30,7 +30,7 @@ export function execCli(args: string[]): Promise<ExecCliResult> {
         code: code ?? (signal ? -1 : 0),
       });
     });
-    proc.on("error", (err) => {
+    proc.on("error", (_err) => {
       resolve({ stdout, stderr, code: -1 });
     });
   });
