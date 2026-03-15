@@ -89,42 +89,7 @@ alexa-mcp media play|pause|next -d Office  # Media control
 - Direct control methods avoid voice profile issues
 - See [docs/API.md](docs/API.md) for full API reference
 
-### "Can't control – may need to switch user accounts"
-
-If the Echo says it can't control the device and suggests switching user accounts:
-
-- **Who the CLI uses:** The CLI always acts as the **Amazon account you signed in with** when you last ran `alexa-mcp auth`. It does not use the Echo’s current profile. Changing the Echo’s profile in the Alexa app does **not** change which account the CLI uses.
-- **When you use profiles (e.g. Rob vs Emma):** You must run the CLI as the **same account that owns the smart home device**. So:
-  1. Run `alexa-mcp auth logout`.
-  2. Run `alexa-mcp auth` and sign in as the **household member who can say “Alexa, turn off Lounge Lamp”** on that Echo and have it work (the account that “owns” the lamp in the Alexa app).
-  3. Then run `alexa-mcp switch "Lounge Lamp" off -d "Lounge Echo"` again.
-- **Single account:** If there’s only one account, ensure the lamp is linked to that account in the Alexa app (Devices → Lights/Plugs).
-
-### Seeing which profile owns devices
-
-Each Echo and smart home device has a **deviceOwnerCustomerId** (Amazon’s internal account ID). The CLI uses the account you signed in with; that account has one or more such IDs. To see who owns what:
-
-- **Echo devices:**  
-  `alexa-mcp devices --owners`  
-  Prints each device name and its `deviceOwnerCustomerId`. Use the same account for `alexa-mcp auth` as the one that owns the Echo you’re targeting.
-
-- **Smart home appliances:**  
-  `alexa-mcp appliances`  
-  The JSON includes `deviceOwnerCustomerId` per device (when the API provides it). Match this to the account you use for auth.
-
-- **Which account the CLI is using:**  
-  `alexa-mcp auth status --verify`  
-  Shows “Account (deviceOwnerCustomerId): …” for the current session. Control will work when this matches the owner of the Echo and the smart home device.
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `ALEXA_REFRESH_TOKEN` | Refresh token (skips config file) |
-| `ALEXA_DOMAIN` | Amazon domain: `amazon.co.uk` (default), `amazon.com`, `amazon.de` |
-| `ALEXA_DEBUG` | Enable API request/response logging |
-
-## MCP Server Setup
+### MCP Server Setup
 
 ### Claude Desktop
 
@@ -241,14 +206,33 @@ The `deviceOwnerCustomerId` must match between your authenticated account and th
 ## Development
 
 ```bash
-npm install
-npm run build
-npm test
-npm run test:integration  # Requires ALEXA_REFRESH_TOKEN
+npm install              # Install dependencies
+npm run build           # Compile TypeScript
+npm test                # Run unit tests
+npm run test:integration # Run integration tests (requires auth)
+npm run lint            # Check code style
+npm run lint:fix        # Fix code style issues
 ```
 
-## API Reference
+## Documentation
 
-The single authoritative API reference is **[docs/API.md](docs/API.md)** — region base URLs, authentication, all endpoints (devices, routines, smart home, behaviors, alarms, media), request/response bodies, and headers.
+- **[API Reference](docs/API.md)** - Complete unofficial Alexa API documentation
+- **[Device Capabilities](docs/DEVICE-CAPABILITIES.md)** - Device capability reference
+- **[User Stories](docs/USER-STORIES.md)** - Usage examples and patterns
 
-**API usage:** All supported regions use the **app API** (eu-api-alexa for UK/EU, na-api-alexa for US): devices-v2, routinesandgroups, behaviors/preview, smarthome/v2/endpoints, layouts, and GraphQL for smart home control.
+## Requirements
+
+- Node.js 18+
+- Amazon Alexa account (amazon.com, amazon.co.uk, or amazon.de)
+
+## License
+
+MIT - See LICENSE file for details
+
+## Contributing
+
+Contributions welcome! Please follow [conventional commits](https://www.conventionalcommits.org/) format.
+
+## Acknowledgments
+
+Built on the unofficial Alexa API. Uses [alexa-cookie2](https://github.com/Apollon77/alexa-cookie) for authentication.
