@@ -247,16 +247,28 @@ export class AlexaClient {
       await this.postGraphql({
         operationName: "setBrightness",
         variables: {
-          featureControlRequests: [
-            {
-              endpointId,
-              featureName: "brightness",
-              featureOperationName: "setBrightness",
-              payload: { brightness },
-            },
-          ],
+          endpointId,
+          value: brightness,
         },
-        query: "mutation setBrightness($featureControlRequests: [FeatureControlRequestInput!]!) { setBrightness(featureControlRequests: $featureControlRequests) }",
+        query: `mutation setBrightness($endpointId: String, $value: Int) {
+  setEndpointFeatures(
+    setEndpointFeaturesInput: {featureControlRequests: [{endpointId: $endpointId, featureName: brightness, featureOperationName: setBrightness, payload: {brightness: $value}}]}
+  ) {
+    featureControlResponses {
+      code
+      endpointId
+      featureOperationName
+      __typename
+    }
+    errors {
+      code
+      message
+      featureOperationName
+      __typename
+    }
+    __typename
+  }
+}`,
       });
       return;
     }
@@ -947,8 +959,8 @@ export class AlexaClient {
   ): Promise<{ volume: number; muted?: boolean }> {
     const data = (await this.getFromAppApi(
       `/api/devices/${encodeURIComponent(deviceType)}/${encodeURIComponent(deviceSerialNumber)}/audio/v2/volume`
-    )) as { volume?: number; muted?: boolean };
-    return { volume: data?.volume ?? 0, muted: data?.muted };
+    )) as { speakerVolume?: number; speakerMuted?: boolean };
+    return { volume: data?.speakerVolume ?? 0, muted: data?.speakerMuted };
   }
 
   /** Set volume for a device (0–100). */

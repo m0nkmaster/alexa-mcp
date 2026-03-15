@@ -336,11 +336,17 @@ mutation setPower($endpointId: String, $featureOperationName: FeatureOperationNa
 **Brightness:**
 
 ```graphql
-mutation setBrightness($featureControlRequests: [FeatureControlRequestInput!]!) {
-  setBrightness(featureControlRequests: $featureControlRequests)
+mutation setBrightness($endpointId: String, $value: Int) {
+  setEndpointFeatures(
+    setEndpointFeaturesInput: {featureControlRequests: [{endpointId: $endpointId, featureName: brightness, featureOperationName: setBrightness, payload: {brightness: $value}}]}
+  ) {
+    featureControlResponses { code endpointId featureOperationName __typename }
+    errors { code message featureOperationName __typename }
+    __typename
+  }
 }
 ```
-- **Variables:** `{ "featureControlRequests": [{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "featureName": "brightness", "featureOperationName": "setBrightness", "payload": { "brightness": 0–100 } }] }`
+- **Variables:** `{ "endpointId": "amzn1.alexa.endpoint.{uuid}", "value": 0–100 }`
 
 **Color temperature:**
 
@@ -552,7 +558,9 @@ Same base (eu-api-alexa.{tld}) unless noted. Request/response shapes not fully s
 - **GraphQL:** `POST /api/profile/graphql`, `POST /nexus/v1/graphql` (app state, device groups, endpoint state, control)
 - **Search:** `POST /api/simba/searchResults`
 - **DND:** `GET /api/dnd/device-status-list`, `PUT /api/dnd/status`, `GET /api/dnd/schedule`
-- **Device volume:** `GET/PUT /api/devices/{deviceType}/{serial}/audio/v2/volume`, `PUT .../audio/v2/speakerVolume`
+- **Device volume:** 
+  - `GET /api/devices/{deviceType}/{serial}/audio/v2/volume` — Returns `{ speakerVolume: 0–100, speakerMuted: boolean, alertVolume, associatedDeviceVolumes, error }`
+  - `PUT /api/devices/{deviceType}/{serial}/audio/v2/speakerVolume` — Body: `{ volume: 0–100 }`
 - **Alerts host (EU):** `GET https://api.eu.amazonalexa.com/v1/layouts`, `GET .../v1/locations/accounts/~current`
 
 ---

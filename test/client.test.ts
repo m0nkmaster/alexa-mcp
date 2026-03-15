@@ -130,7 +130,7 @@ describe("AlexaClient", () => {
   });
 
   it("getVolume returns volume from API", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ volume: 50, muted: false }));
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ speakerVolume: 50, speakerMuted: false }));
 
     const vol = await client.getVolume("A1RABVCI4QCIKC", "G090XG123");
 
