@@ -560,7 +560,7 @@ Same base (eu-api-alexa.{tld}) unless noted. Request/response shapes not fully s
 - **DND:** `GET /api/dnd/device-status-list`, `PUT /api/dnd/status`, `GET /api/dnd/schedule`
 - **Device volume:** 
   - `GET /api/devices/{deviceType}/{serial}/audio/v2/volume` — Returns `{ speakerVolume: 0–100, speakerMuted: boolean, alertVolume, associatedDeviceVolumes, error }`
-  - `PUT /api/devices/{deviceType}/{serial}/audio/v2/speakerVolume` — Body: `{ volume: 0–100 }`
+  - `POST /api/devices/{deviceType}/{serial}/audio/v2/speakerVolume` — Body: `{ volume: 0–100 }` (Note: POST, not PUT)
 - **Alerts host (EU):** `GET https://api.eu.amazonalexa.com/v1/layouts`, `GET .../v1/locations/accounts/~current`
 
 ---

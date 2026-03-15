@@ -969,7 +969,7 @@ export class AlexaClient {
     deviceSerialNumber: string,
     volume: number
   ): Promise<void> {
-    await this.putApp(
+    await this.postApp(
       `/api/devices/${encodeURIComponent(deviceType)}/${encodeURIComponent(deviceSerialNumber)}/audio/v2/speakerVolume`,
       { volume }
     );

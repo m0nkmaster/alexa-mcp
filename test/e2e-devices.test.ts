@@ -207,6 +207,7 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e device control", () => {
     it(
       "pauses music",
       async () => {
+        await sleep(3_000);
         const { stdout, stderr, code } = await execCli([
           "media",
           "pause",
@@ -286,7 +287,7 @@ describe.skipIf(!process.env.TEST_INTEGRATION)("e2e device control", () => {
     it(
       "verifies volume was set to 30",
       async () => {
-        await sleep(1_000);
+        await sleep(3_000);
         const { stdout, stderr, code } = await execCli(["volume", "--device", ECHO]);
         expect(code, stderr).toBe(0);
         const data = JSON.parse(stdout.trim()) as { volume: number };
