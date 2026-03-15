@@ -190,27 +190,53 @@ If installed locally, use the full path:
 }
 ```
 
-### MCP Tools
+### Available MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `alexa_list_devices` | List Echo devices |
-| `alexa_speak` | TTS on a device |
-| `alexa_announce` | Announce to all |
-| `alexa_command` | Voice command (no response returned; prefer direct control for smart home) |
-| `alexa_list_appliances` | List smart home devices (endpointId + friendlyName when available) |
-| `alexa_control_appliance` | turnOn/turnOff/setBrightness by entity/endpoint ID |
-| `alexa_control_by_group` | Turn on/off lights in a room group (e.g. "Kitchen") — **for "all lights in group X"** |
-| `alexa_control_group` | Alias for `alexa_control_by_group`; also supports `lightsOnly` toggle |
-| `alexa_control_by_pattern` | Turn on/off devices matching name pattern (e.g. "kitchen lights") |
-| `alexa_switch_by_name` | Turn single device on/off by friendly name |
-| `alexa_list_device_groups` | List room groups (Living room, Kitchen, etc.) |
-| `alexa_list_audio_groups` | List multi-room audio groups |
-| `alexa_list_routines` | List routines |
-| `alexa_run_routine` | Run a routine by automation ID |
-| `alexa_now_playing` | Now-playing state for a device (includes `taskSessionId`) |
-| `alexa_media_control` | play, pause, resume, stop, next, previous (EU/UK) |
-| `alexa_auth_status` | Check auth status (configured/valid/deviceCount) |
+**Devices & Voice:**
+- `alexa_list_devices` - List Echo devices
+- `alexa_speak` - Text-to-speech on a device
+- `alexa_announce` - Announce to all devices
+- `alexa_command` - Send voice command
+
+**Smart Home:**
+- `alexa_list_appliances` - List smart home devices
+- `alexa_list_device_groups` - List room groups
+- `alexa_control_by_group` - Control all lights in a room group
+- `alexa_control_by_pattern` - Control devices by name pattern
+- `alexa_switch_by_name` - Control single device by name
+- `alexa_control_appliance` - Direct control by entity/endpoint ID
+- `alexa_get_brightness_by_name` - Get device brightness
+- `alexa_set_brightness_by_name` - Set device brightness
+
+**Routines & Media:**
+- `alexa_list_routines` - List Alexa routines
+- `alexa_run_routine` - Execute a routine
+- `alexa_list_audio_groups` - List multi-room audio groups
+- `alexa_now_playing` - Get now-playing state
+- `alexa_media_control` - Control playback (play/pause/next/etc.)
+- `alexa_get_volume` / `alexa_set_volume` - Volume control
+
+**Authentication:**
+- `alexa_auth_status` - Check authentication status
+
+## Troubleshooting
+
+### "Can't control – may need to switch user accounts"
+
+This error occurs when the Amazon account you authenticated with doesn't own the device.
+
+**Solution:**
+1. Run `alexa-mcp auth logout`
+2. Run `alexa-mcp auth` and sign in with the account that owns the device
+3. Verify with `alexa-mcp auth status --verify`
+
+**Check device ownership:**
+```bash
+alexa-mcp devices --owners    # Show Echo device owners
+alexa-mcp appliances          # Show smart home device owners
+```
+
+The `deviceOwnerCustomerId` must match between your authenticated account and the device.
 
 ## Development
 
