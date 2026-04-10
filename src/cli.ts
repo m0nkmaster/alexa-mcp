@@ -227,7 +227,7 @@ program
 
 program
   .command("switch-group <group> <state>")
-  .description("Turn on/off all lights in a room group (e.g. Kitchen, Living room). Uses group membership from Alexa app.")
+  .description("Turn on/off all lights in a room group (e.g. Kitchen, Living room). Returns JSON {action, group, controlled, errors}.")
   .option("--all", "Control all appliances in group, not just lights", false)
   .action(async (group: string, state: string, opts: { all?: boolean }) => {
     const s = state.toLowerCase();
@@ -246,12 +246,7 @@ program
       const { controlled, errors } = await client.controlAppliancesByGroup(group, action, {
         lightsOnly: !opts.all,
       });
-      if (controlled.length > 0) {
-        console.log(`${action}: ${controlled.join(", ")}`);
-      }
-      if (errors.length > 0) {
-        console.error(errors.join("\n"));
-      }
+      console.log(JSON.stringify({ action, group, controlled, errors }));
       if (controlled.length === 0 && errors.length === 0) {
         console.error(`No lights in group "${group}". Try 'alexa-mcp groups' to see groups.`);
         process.exit(1);
@@ -265,7 +260,7 @@ program
 program
   .command("switch-room <pattern> <state>")
   .description(
-    "Turn on/off all smart home devices matching a pattern (e.g. 'kitchen lights', 'living room'). Uses direct control—avoids profile issues."
+    "Turn on/off all smart home devices matching a pattern (e.g. 'kitchen lights', 'living room'). Tries all-word match first; falls back to any-word. Returns JSON {action, pattern, controlled, errors}."
   )
   .action(async (pattern: string, state: string) => {
     const s = state.toLowerCase();
@@ -281,12 +276,7 @@ program
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
     const action = s === "on" ? "turnOn" : "turnOff";
     const { controlled, errors } = await client.controlAppliancesByPattern(pattern, action);
-    if (controlled.length > 0) {
-      console.log(`${action}: ${controlled.join(", ")}`);
-    }
-    if (errors.length > 0) {
-      console.error(errors.join("\n"));
-    }
+    console.log(JSON.stringify({ action, pattern, controlled, errors }));
     if (controlled.length === 0 && errors.length === 0) {
       console.error(`No devices matched "${pattern}". Try 'alexa-mcp appliances' to see names.`);
       process.exit(1);
@@ -296,7 +286,7 @@ program
 program
   .command("switch <name> <state>")
   .description(
-    "Turn single smart home device on/off by name. For room/pattern (e.g. 'kitchen lights'), use switch-room instead."
+    "Turn single smart home device on/off by name. Returns live device state JSON after applying. For room/pattern (e.g. 'kitchen lights'), use switch-room instead."
   )
   .option("-d, --device <echo>", "Echo for voice fallback when direct control fails", "")
   .action(async (name: string, state: string, opts: { device: string }) => {
@@ -315,7 +305,8 @@ program
     const app = await client.resolveApplianceByName(name);
     if (app?.endpointId) {
       await client.controlAppliance(app.endpointId, action);
-      console.log(`Done: ${action} ${app.friendlyName} (direct control)`);
+      const state = await client.getBrightnessState(app.endpointId);
+      console.log(JSON.stringify({ friendlyName: app.friendlyName, endpointId: app.endpointId, ...state }, null, 2));
       return;
     }
     if (!opts.device) {
@@ -331,7 +322,7 @@ program
     }
     const text = s === "on" ? `turn on ${name}` : `turn off ${name}`;
     await client.command(d.serialNumber, d.deviceType, d.deviceOwnerCustomerId, text);
-    console.log(`Sent "${text}" via ${d.accountName} (voice fallback)`);
+    console.log(JSON.stringify({ friendlyName: name, action, method: "voice", device: d.accountName }));
   });
 
 program
@@ -348,23 +339,84 @@ program
     console.log(JSON.stringify(groups, null, 2));
   });
 
+function filterAppliancesByType(appliances: import("./client.js").Appliance[], type: string): import("./client.js").Appliance[] {
+  return appliances.filter((a) => {
+    const caps = (a.capabilities ?? []).join(" ").toLowerCase();
+    const name = (a.friendlyName ?? "").toLowerCase();
+    switch (type) {
+      case "light": return caps.includes("brightness") || caps.includes("colortemperature") || /light|lamp|bulb/.test(name);
+      case "switch": return caps.includes("power") && !caps.includes("brightness");
+      case "plug": return /plug/.test(name);
+      case "sensor": return /sensor|motion|contact|temperature/.test(caps);
+      case "camera": return /camera|doorbell/.test(name);
+      default: return true;
+    }
+  });
+}
+
 program
   .command("appliances")
   .description("List smart home devices")
-  .action(async () => {
+  .option("--type <type>", "Filter by type: light, switch, plug, sensor, camera")
+  .action(async (opts: { type?: string }) => {
     const cfg = getAuthConfig();
     if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
-    const appliances = await client.listAppliances();
-    console.log(JSON.stringify(appliances, null, 2));
+    let appliances = await client.listAppliances();
+    if (opts.type) {
+      appliances = filterAppliancesByType(appliances, opts.type.toLowerCase());
+    }
+    const output = appliances.map((a) => ({
+      ...a,
+      displayName: `${a.friendlyName}${a.endpointId ? ` \u2026${a.endpointId.slice(-4)}` : ""}`,
+    }));
+    console.log(JSON.stringify(output, null, 2));
+  });
+
+program
+  .command("status <name>")
+  .description("Get current state of a smart home device by name")
+  .action(async (name: string) => {
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const app = await client.resolveApplianceByName(name);
+    if (!app) {
+      console.error(JSON.stringify({ error: `Device not found: "${name}". Try 'alexa-mcp appliances' to see names.` }));
+      process.exit(1);
+    }
+    const eid = app.endpointId ?? app.entityId;
+    const state = eid ? await client.getBrightnessState(eid) : {};
+    console.log(JSON.stringify({ friendlyName: app.friendlyName, endpointId: eid, isReachable: app.isReachable, ...state }, null, 2));
+  });
+
+program
+  .command("group-members <group>")
+  .description("List all devices in a named room group")
+  .action(async (group: string) => {
+    const cfg = getAuthConfig();
+    if (!cfg) {
+      console.error("No refresh token.");
+      process.exit(1);
+    }
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const members = await client.listGroupMembers(group);
+    if (members.length === 0) {
+      console.error(`No group found matching "${group}". Try 'alexa-mcp groups' to see groups.`);
+      process.exit(1);
+    }
+    console.log(JSON.stringify(members, null, 2));
   });
 
 program
   .command("control <entityId> <action>")
-  .description("Control smart home device (turnOn, turnOff, setBrightness, setColorTemperature)")
+  .description("Control smart home device (turnOn, turnOff, setBrightness, setColorTemperature). Returns live state JSON after applying.")
   .option("-b, --brightness <0-100>", "Brightness for setBrightness", (v) => parseInt(v, 10))
   .option("-k, --kelvin <2000-6500>", "Color temperature in Kelvin for setColorTemperature", (v) => parseInt(v, 10))
   .action(async (entityId: string, action: string, opts: { brightness?: number; kelvin?: number }) => {
@@ -393,7 +445,8 @@ program
       opts.brightness,
       opts.kelvin
     );
-    console.log(`Done: ${action} ${entityId}`);
+    const state = entityId.startsWith("amzn1.alexa.endpoint.") ? await client.getBrightnessState(entityId) : {};
+    console.log(JSON.stringify({ entityId, action, ...state }, null, 2));
   });
 
 program
@@ -411,24 +464,53 @@ program
   });
 
 program
-  .command("run <automationId>")
-  .description("Run a routine by automation ID")
-  .action(async (automationId: string) => {
+  .command("run [automationId]")
+  .description("Run a routine by ID, exact name (--name), or partial name (--partial)")
+  .option("--name <name>", "Run routine by exact name (case-insensitive)")
+  .option("--partial <text>", "Run routine by partial name match")
+  .action(async (automationId: string | undefined, opts: { name?: string; partial?: string }) => {
     const cfg = getAuthConfig();
     if (!cfg) {
       console.error("No refresh token.");
       process.exit(1);
     }
-    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
-    const routines = await client.listRoutines();
-    const r = routines.find((x) => x.automationId === automationId);
-    if (!r) {
-      console.error(`Routine not found: ${automationId}`);
+    if (!automationId && !opts.name && !opts.partial) {
+      console.error("Provide automationId, --name <name>, or --partial <text>");
       process.exit(1);
     }
-    const sequenceJson = r.sequence != null ? JSON.stringify(r.sequence) : undefined;
-    await client.runRoutine(r.automationId, sequenceJson);
-    console.log(`Ran routine: ${r.name}`);
+    const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
+    const routines = await client.listRoutines();
+    let r: (typeof routines)[0] | undefined;
+    if (automationId) {
+      r = routines.find((x) => x.automationId === automationId);
+      if (!r) {
+        console.error(`Routine not found: ${automationId}`);
+        process.exit(1);
+      }
+    } else if (opts.name) {
+      const q = opts.name.toLowerCase();
+      r = routines.find((x) => x.name.toLowerCase() === q);
+      if (!r) {
+        console.error(`Routine not found with name: "${opts.name}"`);
+        process.exit(1);
+      }
+    } else if (opts.partial) {
+      const q = opts.partial.toLowerCase();
+      const matches = routines.filter((x) => x.name.toLowerCase().includes(q));
+      if (matches.length === 0) {
+        console.error(`No routines matched: "${opts.partial}"`);
+        process.exit(1);
+      }
+      if (matches.length > 1) {
+        console.log(JSON.stringify({ matches: matches.map((m) => ({ automationId: m.automationId, name: m.name })) }, null, 2));
+        console.error(`Multiple matches. Provide --name or a more specific --partial.`);
+        process.exit(1);
+      }
+      r = matches[0];
+    }
+    const sequenceJson = r!.sequence != null ? JSON.stringify(r!.sequence) : undefined;
+    await client.runRoutine(r!.automationId, sequenceJson);
+    console.log(JSON.stringify({ ran: r!.name, automationId: r!.automationId }));
   });
 
 program
@@ -572,7 +654,7 @@ program
 
 program
   .command("batch-control <action>")
-  .description("Batch control multiple smart home devices with same action/value. Much faster than individual calls.")
+  .description("Batch control multiple smart home devices with same action/value. Returns per-device result map {friendlyName, success, error?}.")
   .argument("[entityIds...]", "Entity IDs or endpoint IDs (omit to read from stdin)")
   .option("-b, --brightness <0-100>", "Brightness for setBrightness", (v) => parseInt(v, 10))
   .option("-k, --kelvin <2000-6500>", "Color temperature in Kelvin for setColorTemperature", (v) => parseInt(v, 10))
@@ -613,15 +695,27 @@ program
     }
 
     const client = new AlexaClient({ refreshToken: cfg.refreshToken, domain: cfg.domain });
-    const startTime = Date.now();
-    await client.batchControlAppliances(
-      entityIds,
-      action as "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
-      opts.brightness,
-      opts.kelvin
+    const [results, appliances] = await Promise.all([
+      client.batchControlAppliances(
+        entityIds,
+        action as "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
+        opts.brightness,
+        opts.kelvin
+      ),
+      client.listAppliances(),
+    ]);
+    const nameMap = new Map(appliances.map((a) => [a.entityId, a.friendlyName]));
+    const output = Object.fromEntries(
+      results.map((r) => [
+        r.entityId,
+        {
+          friendlyName: nameMap.get(r.entityId) ?? r.entityId,
+          success: r.success,
+          ...(r.error ? { error: r.error } : {}),
+        },
+      ])
     );
-    const duration = Date.now() - startTime;
-    console.log(`Batch done: ${action} on ${entityIds.length} devices in ${duration}ms`);
+    console.log(JSON.stringify(output, null, 2));
   });
 
 const mediaCmd = program

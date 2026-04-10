@@ -122,17 +122,70 @@ export function registerAlexaTools(
     {
       title: "List Smart Home Devices",
       description:
-        "List smart home appliances (lights, plugs, etc.) with endpointId (amzn1.alexa.endpoint.*) and friendlyName when available. Use endpointId with control_appliance for direct control.",
-      inputSchema: z.object({}),
+        "List smart home appliances (lights, plugs, etc.) with endpointId (amzn1.alexa.endpoint.*) and friendlyName when available. Use endpointId with control_appliance for direct control. Filter by type: light, switch, plug, sensor, camera.",
+      inputSchema: z.object({
+        type: z.string().optional().describe("Filter by device type: light, switch, plug, sensor, camera"),
+      }),
     },
-    async () => {
+    async ({ type }) => {
       const client = await clientFactory();
-      const appliances = await client.listAppliances();
+      let appliances = await client.listAppliances();
+      if (type) {
+        const t = type.toLowerCase();
+        appliances = appliances.filter((a) => {
+          const caps = (a.capabilities ?? []).join(" ").toLowerCase();
+          const name = (a.friendlyName ?? "").toLowerCase();
+          switch (t) {
+            case "light": return caps.includes("brightness") || caps.includes("colortemperature") || /light|lamp|bulb/.test(name);
+            case "switch": return caps.includes("power") && !caps.includes("brightness");
+            case "plug": return /plug/.test(name);
+            case "sensor": return /sensor|motion|contact|temperature/.test(caps);
+            case "camera": return /camera|doorbell/.test(name);
+            default: return true;
+          }
+        });
+      }
+      const output = appliances.map((a) => ({
+        ...a,
+        displayName: `${a.friendlyName}${a.endpointId ? ` \u2026${a.endpointId.slice(-4)}` : ""}`,
+      }));
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(appliances, null, 2),
+            text: JSON.stringify(output, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "alexa_device_status",
+    {
+      title: "Get Device Status",
+      description:
+        "Get the current state of a smart home device by name: power, brightness, colorTemperature, and reachability. Queries live state from GraphQL.",
+      inputSchema: z.object({
+        name: z.string().describe("Smart home device friendly name (e.g. 'Kitchen spot 1', 'Lounge lamp')"),
+      }),
+    },
+    async ({ name }) => {
+      const client = await clientFactory();
+      const app = await client.resolveApplianceByName(name);
+      if (!app) {
+        return {
+          content: [{ type: "text" as const, text: `Device not found: "${name}". Use list_appliances to see available device names.` }],
+          isError: true,
+        };
+      }
+      const eid = app.endpointId ?? app.entityId;
+      const state = eid ? await client.getBrightnessState(eid) : {};
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ friendlyName: app.friendlyName, endpointId: eid, isReachable: app.isReachable, ...state }, null, 2),
           },
         ],
       };
@@ -348,6 +401,36 @@ export function registerAlexaTools(
   );
 
   server.registerTool(
+    "alexa_group_members",
+    {
+      title: "List Group Members",
+      description:
+        "List all smart home devices in a named room group (e.g. 'Kitchen', 'Living room'). Returns full appliance info for each member.",
+      inputSchema: z.object({
+        groupName: z.string().describe("Room group name (e.g. 'Kitchen', 'Living room')"),
+      }),
+    },
+    async ({ groupName }) => {
+      const client = await clientFactory();
+      const members = await client.listGroupMembers(groupName);
+      if (members.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: `No group found matching "${groupName}". Use list_device_groups to see groups.` }],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(members, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
     "alexa_control_group",
     {
       title: "Control Room Group (Lights)",
@@ -495,25 +578,61 @@ export function registerAlexaTools(
     "alexa_run_routine",
     {
       title: "Run Routine",
-      description: "Run an Alexa routine by automation ID",
+      description: "Run an Alexa routine by automation ID, exact name, or partial name match",
       inputSchema: z.object({
-        automationId: z.string().describe("Automation ID from list_routines"),
+        automationId: z.string().optional().describe("Automation ID from list_routines"),
+        name: z.string().optional().describe("Run by exact routine name (case-insensitive)"),
+        partial: z.string().optional().describe("Run by partial routine name match"),
       }),
     },
-    async ({ automationId }) => {
+    async ({ automationId, name, partial }) => {
       const client = await clientFactory();
-      const routines = await client.listRoutines();
-      const r = routines.find((x) => x.automationId === automationId);
-      if (!r) {
+      if (!automationId && !name && !partial) {
         return {
-          content: [{ type: "text" as const, text: `Routine not found: ${automationId}` }],
+          content: [{ type: "text" as const, text: "Provide automationId, name, or partial" }],
           isError: true,
         };
       }
-      const sequenceJson = r.sequence != null ? JSON.stringify(r.sequence) : undefined;
-      await client.runRoutine(r.automationId, sequenceJson);
+      const routines = await client.listRoutines();
+      let r: (typeof routines)[0] | undefined;
+      if (automationId) {
+        r = routines.find((x) => x.automationId === automationId);
+        if (!r) {
+          return {
+            content: [{ type: "text" as const, text: `Routine not found: ${automationId}` }],
+            isError: true,
+          };
+        }
+      } else if (name) {
+        const q = name.toLowerCase();
+        r = routines.find((x) => x.name.toLowerCase() === q);
+        if (!r) {
+          return {
+            content: [{ type: "text" as const, text: `Routine not found with name: "${name}"` }],
+            isError: true,
+          };
+        }
+      } else if (partial) {
+        const q = partial.toLowerCase();
+        const matches = routines.filter((x) => x.name.toLowerCase().includes(q));
+        if (matches.length === 0) {
+          return {
+            content: [{ type: "text" as const, text: `No routines matched: "${partial}"` }],
+            isError: true,
+          };
+        }
+        if (matches.length > 1) {
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ matches: matches.map((m) => ({ automationId: m.automationId, name: m.name })) }, null, 2) }],
+            isError: true,
+          };
+        }
+        r = matches[0];
+      }
+      const sequenceJson = r!.sequence != null ? JSON.stringify(r!.sequence) : undefined;
+      await client.runRoutine(r!.automationId, sequenceJson);
       return {
-        content: [{ type: "text" as const, text: `Ran routine: ${r.name}` }],
+        content: [{ type: "text" as const, text: JSON.stringify({ ran: r!.name, automationId: r!.automationId }) }],
       };
     }
   );
@@ -728,9 +847,23 @@ export function registerAlexaTools(
           isError: true,
         };
       }
-      await client.batchControlAppliances(entityIds, action, brightness, colorTemperatureInKelvin);
+      const [results, appliances] = await Promise.all([
+        client.batchControlAppliances(entityIds, action, brightness, colorTemperatureInKelvin),
+        client.listAppliances(),
+      ]);
+      const nameMap = new Map(appliances.map((a) => [a.entityId, a.friendlyName]));
+      const output = Object.fromEntries(
+        results.map((r) => [
+          r.entityId,
+          {
+            friendlyName: nameMap.get(r.entityId) ?? r.entityId,
+            success: r.success,
+            ...(r.error ? { error: r.error } : {}),
+          },
+        ])
+      );
       return {
-        content: [{ type: "text" as const, text: `Batch done: ${action} on ${entityIds.length} devices` }],
+        content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
       };
     }
   );
