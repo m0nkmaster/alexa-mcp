@@ -100,6 +100,9 @@ describe("AlexaClient", () => {
   });
 
   it("listAppliances returns appliances from v2/endpoints when eu-api", async () => {
+    const uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    const endpointId = `amzn1.alexa.endpoint.${uuid}`;
+    // v2/endpoints
     vi.mocked(fetch).mockResolvedValueOnce(
       mockRes({
         endpoints: [
@@ -111,13 +114,27 @@ describe("AlexaClient", () => {
         ],
       })
     );
-    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ layouts: {} })); // no layout IDs to attach
+    // layouts with matching UUID
+    vi.mocked(fetch).mockResolvedValueOnce(mockRes({ layouts: { [uuid]: { type: "None" } } }));
+    // GraphQL capabilities batch
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes([{
+        data: { endpoint: { id: endpointId, features: [{ name: "power" }, { name: "brightness" }] } },
+      }])
+    );
+    // GraphQL friendly names batch
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes([{
+        data: { endpoint: { id: endpointId, friendlyNameObject: { value: { text: "Lounge lamp" } } } },
+      }])
+    );
 
     const appliances = await client.listAppliances();
 
     expect(appliances).toHaveLength(1);
-    expect(appliances[0].friendlyName).toBe("s1");
-    expect(appliances[0].entityId).toBe("s1");
+    expect(appliances[0].friendlyName).toBe("Lounge lamp");
+    expect(appliances[0].endpointId).toBe(endpointId);
+    expect(appliances[0].capabilities).toEqual(["power", "brightness"]);
   });
 
   it("listAppliances returns empty when eu-api v2 returns no endpoints", async () => {
@@ -197,6 +214,9 @@ describe("AlexaClient", () => {
 
   it("listAppliances returns appliances from app API (US)", async () => {
     const usClient = new AlexaClient({ refreshToken: "Atnr|test", domain: "amazon.com" });
+    const uuid = "f1e2d3c4-b5a6-7890-1234-567890abcdef";
+    const endpointId = `amzn1.alexa.endpoint.${uuid}`;
+    // v2/endpoints
     vi.mocked(fetch).mockResolvedValueOnce(
       mockRes({
         endpoints: [
@@ -209,23 +229,28 @@ describe("AlexaClient", () => {
         ],
       })
     );
+    // layouts with valid UUID
     vi.mocked(fetch).mockResolvedValueOnce(
-      mockRes({
-        layouts: {
-          "layout-uuid": {
-            template: {
-              header: { primaryItem: { interfaceName: "Alexa.PowerController" } },
-            },
-          },
-        },
-      })
+      mockRes({ layouts: { [uuid]: { type: "None" } } })
+    );
+    // GraphQL capabilities batch
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes([{
+        data: { endpoint: { id: endpointId, features: [{ name: "power" }] } },
+      }])
+    );
+    // GraphQL friendly names batch
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes([{
+        data: { endpoint: { id: endpointId, friendlyNameObject: { value: { text: "Living room light" } } } },
+      }])
     );
 
     const appliances = await usClient.listAppliances();
 
     expect(appliances).toHaveLength(1);
-    expect(appliances[0].entityId).toBe("s1");
-    expect(appliances[0].friendlyName).toBe("s1");
+    expect(appliances[0].friendlyName).toBe("Living room light");
+    expect(appliances[0].endpointId).toBe(endpointId);
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("na-api-alexa.amazon.com"),
       expect.any(Object)

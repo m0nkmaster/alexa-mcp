@@ -369,10 +369,7 @@ program
     if (opts.type) {
       appliances = filterAppliancesByType(appliances, opts.type.toLowerCase());
     }
-    const output = appliances.map((a) => ({
-      ...a,
-      displayName: `${a.friendlyName}${a.endpointId ? ` \u2026${a.endpointId.slice(-4)}` : ""}`,
-    }));
+    const output = appliances.map(({ entityId, ...rest }) => rest);
     console.log(JSON.stringify(output, null, 2));
   });
 

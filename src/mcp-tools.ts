@@ -145,10 +145,7 @@ export function registerAlexaTools(
           }
         });
       }
-      const output = appliances.map((a) => ({
-        ...a,
-        displayName: `${a.friendlyName}${a.endpointId ? ` \u2026${a.endpointId.slice(-4)}` : ""}`,
-      }));
+      const output = appliances.map(({ entityId, ...rest }) => rest);
       return {
         content: [
           {
