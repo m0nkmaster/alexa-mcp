@@ -131,7 +131,7 @@ async function captureResponses() {
     );
     if (lightAppliance?.endpointId) {
       try {
-        const brightness = await client.getBrightnessState(lightAppliance.endpointId);
+        const brightness = await client.getEndpointState(lightAppliance.endpointId);
         captures.push({
           tool: "get_brightness_by_name",
           description: "Get the current brightness and power state of a smart home light",

@@ -1290,11 +1290,11 @@ export class AlexaClient {
   }
 
   /**
-   * Get brightness and color temperature state for a smart home endpoint via GraphQL.
-   * Returns brightness (0–100), color temperature (Kelvin), and power state when available.
-   * Uses the same endpoint() query shape as the Alexa mobile app.
+   * Get live state for a smart home endpoint via GraphQL.
+   * Returns power state, reachability, brightness (0–100), and color temperature (Kelvin) when available.
+   * Works for any endpoint type (lights, plugs, switches, etc.).
    */
-  async getBrightnessState(endpointId: string): Promise<{ brightness?: number; colorTemperatureInKelvin?: number; powerState?: string }> {
+  async getEndpointState(endpointId: string): Promise<{ brightness?: number; colorTemperatureInKelvin?: number; powerState?: string; isReachable?: boolean }> {
     try {
       const result = (await this.postGraphql({
         operationName: "EndpointFeaturesQuery",
@@ -1309,6 +1309,7 @@ export class AlexaClient {
                 brightnessStateValue?: number;
                 colorTemperatureInKelvinStateValue?: number;
                 powerStateValue?: string;
+                reachabilityStatusValue?: string;
               }>;
             }>;
           };
@@ -1318,14 +1319,16 @@ export class AlexaClient {
       let brightness: number | undefined;
       let colorTemperatureInKelvin: number | undefined;
       let powerState: string | undefined;
+      let reachable: boolean | undefined;
       for (const f of features) {
         for (const p of f.properties ?? []) {
           if (p.brightnessStateValue !== undefined) brightness = p.brightnessStateValue;
           if (p.colorTemperatureInKelvinStateValue !== undefined) colorTemperatureInKelvin = p.colorTemperatureInKelvinStateValue;
           if (p.powerStateValue !== undefined) powerState = p.powerStateValue;
+          if (p.reachabilityStatusValue !== undefined) reachable = p.reachabilityStatusValue === "REACHABLE";
         }
       }
-      return { brightness, colorTemperatureInKelvin, powerState };
+      return { brightness, colorTemperatureInKelvin, powerState, isReachable: reachable };
     } catch {
       return {};
     }

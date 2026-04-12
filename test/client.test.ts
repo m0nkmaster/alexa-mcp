@@ -181,7 +181,7 @@ describe("AlexaClient", () => {
     );
   });
 
-  it("getBrightnessState returns brightness from GraphQL", async () => {
+  it("getEndpointState returns brightness from GraphQL", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       mockRes({
         data: {
@@ -191,22 +191,48 @@ describe("AlexaClient", () => {
             features: [
               { name: "brightness", properties: [{ brightnessStateValue: 75, __typename: "Brightness" }] },
               { name: "power", properties: [{ powerStateValue: "ON", __typename: "Power" }] },
+              { name: "reachability", properties: [{ reachabilityStatusValue: "REACHABLE", __typename: "Reachability" }] },
             ],
           },
         },
       })
     );
 
-    const state = await client.getBrightnessState("amzn1.alexa.endpoint.abc123");
+    const state = await client.getEndpointState("amzn1.alexa.endpoint.abc123");
 
     expect(state.brightness).toBe(75);
     expect(state.powerState).toBe("ON");
+    expect(state.isReachable).toBe(true);
   });
 
-  it("getBrightnessState returns empty object on API error", async () => {
+  it("getEndpointState reports unreachable devices", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockRes({
+        data: {
+          endpoint: {
+            id: "amzn1.alexa.endpoint.offline",
+            enablement: "ENABLED",
+            features: [
+              { name: "brightness", properties: [{ brightnessStateValue: 10, __typename: "Brightness" }] },
+              { name: "power", properties: [{ powerStateValue: "ON", __typename: "Power" }] },
+              { name: "reachability", properties: [{ reachabilityStatusValue: "UNREACHABLE", __typename: "Reachability" }] },
+            ],
+          },
+        },
+      })
+    );
+
+    const state = await client.getEndpointState("amzn1.alexa.endpoint.offline");
+
+    expect(state.isReachable).toBe(false);
+    expect(state.brightness).toBe(10);
+    expect(state.powerState).toBe("ON");
+  });
+
+  it("getEndpointState returns empty object on API error", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(mockRes({ errors: ["not found"] }, false));
 
-    const state = await client.getBrightnessState("amzn1.alexa.endpoint.unknown");
+    const state = await client.getEndpointState("amzn1.alexa.endpoint.unknown");
 
     expect(state.brightness).toBeUndefined();
     expect(state.powerState).toBeUndefined();

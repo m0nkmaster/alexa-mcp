@@ -305,7 +305,7 @@ program
     const app = await client.resolveApplianceByName(name);
     if (app?.endpointId) {
       await client.controlAppliance(app.endpointId, action);
-      const state = await client.getBrightnessState(app.endpointId);
+      const state = await client.getEndpointState(app.endpointId);
       console.log(JSON.stringify({ friendlyName: app.friendlyName, endpointId: app.endpointId, ...state }, null, 2));
       return;
     }
@@ -389,7 +389,7 @@ program
       process.exit(1);
     }
     const eid = app.endpointId ?? app.entityId;
-    const state = eid ? await client.getBrightnessState(eid) : {};
+    const state = eid ? await client.getEndpointState(eid) : {};
     console.log(JSON.stringify({ friendlyName: app.friendlyName, endpointId: eid, isReachable: app.isReachable, ...state }, null, 2));
   });
 
@@ -442,7 +442,7 @@ program
       opts.brightness,
       opts.kelvin
     );
-    const state = entityId.startsWith("amzn1.alexa.endpoint.") ? await client.getBrightnessState(entityId) : {};
+    const state = entityId.startsWith("amzn1.alexa.endpoint.") ? await client.getEndpointState(entityId) : {};
     console.log(JSON.stringify({ entityId, action, ...state }, null, 2));
   });
 
@@ -596,7 +596,7 @@ program
       process.exit(1);
     }
     if (!level) {
-      const state = await client.getBrightnessState(eid);
+      const state = await client.getEndpointState(eid);
       console.log(JSON.stringify({ device: app.friendlyName, endpointId: eid, ...state }, null, 2));
       return;
     }
@@ -636,7 +636,7 @@ program
       process.exit(1);
     }
     if (!kelvin) {
-      const state = await client.getBrightnessState(eid);
+      const state = await client.getEndpointState(eid);
       console.log(JSON.stringify({ device: app.friendlyName, endpointId: eid, ...state }, null, 2));
       return;
     }

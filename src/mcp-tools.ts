@@ -177,7 +177,7 @@ export function registerAlexaTools(
         };
       }
       const eid = app.endpointId ?? app.entityId;
-      const state = eid ? await client.getBrightnessState(eid) : {};
+      const state = eid ? await client.getEndpointState(eid) : {};
       return {
         content: [
           {
@@ -801,7 +801,7 @@ export function registerAlexaTools(
           isError: true,
         };
       }
-      const state = await client.getBrightnessState(eid);
+      const state = await client.getEndpointState(eid);
       return {
         content: [
           {
@@ -978,7 +978,7 @@ export function registerAlexaTools(
           isError: true,
         };
       }
-      const state = await client.getBrightnessState(eid);
+      const state = await client.getEndpointState(eid);
       return {
         content: [
           {
