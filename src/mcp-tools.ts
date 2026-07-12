@@ -1,7 +1,26 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { AlexaClient } from "./client.js";
+import { AlexaClient, AmbiguousMatchError } from "./client.js";
 import { loadRefreshToken, loadDomain } from "./auth.js";
+
+function matchErrorContent(e: unknown) {
+  if (e instanceof AmbiguousMatchError) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            error: e.message,
+            query: e.query,
+            suggestions: e.suggestions,
+          }),
+        },
+      ],
+      isError: true as const,
+    };
+  }
+  return null;
+}
 
 export function registerAlexaTools(
   server: McpServer,
@@ -40,32 +59,40 @@ export function registerAlexaTools(
     },
     async ({ device, text }) => {
       const client = await clientFactory();
-      const d = await client.resolveDevice(device);
-      if (!d) {
+      try {
+        const d = await client.resolveDevice(device);
+        if (!d) {
+          return {
+            content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+            isError: true,
+          };
+        }
+        await client.speak(
+          d.serialNumber,
+          d.deviceType,
+          d.deviceOwnerCustomerId,
+          text
+        );
         return {
-          content: [{ type: "text" as const, text: `Device not found: ${device}` }],
+          content: [{ type: "text" as const, text: `Spoke on ${d.accountName}` }],
+        };
+      } catch (e) {
+        return matchErrorContent(e) ?? {
+          content: [{ type: "text" as const, text: String(e) }],
           isError: true,
         };
       }
-      await client.speak(
-        d.serialNumber,
-        d.deviceType,
-        d.deviceOwnerCustomerId,
-        text
-      );
-      return {
-        content: [{ type: "text" as const, text: `Spoke on ${d.accountName}` }],
-      };
     }
   );
 
   server.registerTool(
     "alexa_announce",
     {
-      title: "Announce to All",
-      description: "Announce a message to all Echo devices",
+      title: "Announce to All Devices",
+      description:
+        "Broadcast an announcement to ALL Echo devices on the account (not a single device). For one-device speech, use alexa_speak instead.",
       inputSchema: z.object({
-        text: z.string().describe("Message to announce"),
+        text: z.string().describe("Message to announce to all devices"),
       }),
     },
     async ({ text }) => {
@@ -80,7 +107,12 @@ export function registerAlexaTools(
       const customerId = devices[0].deviceOwnerCustomerId;
       await client.announce(customerId, text);
       return {
-        content: [{ type: "text" as const, text: "Announcement sent" }],
+        content: [
+          {
+            type: "text" as const,
+            text: "Announcement broadcast to all Echo devices on the account",
+          },
+        ],
       };
     }
   );
@@ -145,7 +177,7 @@ export function registerAlexaTools(
           }
         });
       }
-      const output = appliances.map(({ entityId, ...rest }) => rest);
+      const output = appliances.map(({ entityId: _entityId, ...rest }) => rest);
       return {
         content: [
           {
@@ -249,29 +281,34 @@ export function registerAlexaTools(
       const client = await clientFactory();
       const action = state === "on" ? "turnOn" : "turnOff";
       try {
-        const { controlled, errors } = await client.controlAppliancesByGroup(groupName, action, {
+        const result = await client.controlAppliancesByGroup(groupName, action, {
           lightsOnly,
         });
-        const lines: string[] = [];
-        if (controlled.length > 0) {
-          lines.push(`Done (group ${groupName}): ${action} → ${controlled.join(", ")}`);
-        }
-        if (errors.length > 0) {
-          lines.push(`Errors: ${errors.join("; ")}`);
-        }
+        const { controlled, errors, unresolved, success, partial } = result;
         if (controlled.length === 0 && errors.length === 0) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `No lights controlled in group "${groupName}". Try list_device_groups to see groups.`,
+                text: JSON.stringify({
+                  error: `No lights controlled in group "${groupName}". Try list_device_groups to see groups.`,
+                  unresolved,
+                  success: false,
+                  partial: false,
+                }),
               },
             ],
+            isError: true,
           };
         }
         return {
-          content: [{ type: "text" as const, text: lines.join("\n") }],
-          isError: errors.length > 0 && controlled.length === 0,
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ action, group: groupName, controlled, errors, unresolved, success, partial }),
+            },
+          ],
+          isError: !success && !partial,
         };
       } catch (e) {
         return {
@@ -298,28 +335,31 @@ export function registerAlexaTools(
     async ({ pattern, state }) => {
       const client = await clientFactory();
       const action = state === "on" ? "turnOn" : "turnOff";
-      const { controlled, errors } = await client.controlAppliancesByPattern(pattern, action);
-      const lines: string[] = [];
-      if (controlled.length > 0) {
-        lines.push(`Done (direct control): ${action} → ${controlled.join(", ")}`);
-      }
-      if (errors.length > 0) {
-        lines.push(`Errors: ${errors.join("; ")}`);
-      }
+      const result = await client.controlAppliancesByPattern(pattern, action);
+      const { controlled, errors, success, partial } = result;
       if (controlled.length === 0 && errors.length === 0) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `No devices matched "${pattern}". Use list_appliances to see device names.`,
+              text: JSON.stringify({
+                error: `No devices matched "${pattern}". Use list_appliances to see device names.`,
+                success: false,
+                partial: false,
+              }),
             },
           ],
           isError: true,
         };
       }
       return {
-        content: [{ type: "text" as const, text: lines.join("\n") }],
-        isError: errors.length > 0 && controlled.length === 0,
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ action, pattern, controlled, errors, success, partial }),
+          },
+        ],
+        isError: !success && !partial,
       };
     }
   );
@@ -342,36 +382,43 @@ export function registerAlexaTools(
     async ({ name, state, device }) => {
       const client = await clientFactory();
       const action = state === "on" ? "turnOn" : "turnOff";
-      const app = await client.resolveApplianceByName(name);
-      if (app?.endpointId) {
-        await client.controlAppliance(app.endpointId, action);
+      try {
+        const app = await client.resolveApplianceByName(name);
+        if (app?.endpointId) {
+          await client.controlAppliance(app.endpointId, action);
+          return {
+            content: [{ type: "text" as const, text: `Done: ${action} ${app.friendlyName} (direct control)` }],
+          };
+        }
+        if (!device) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Could not resolve "${name}" to a controllable device. Try list_appliances to see names. If the device exists, provide 'device' for voice fallback.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        const d = await client.resolveDevice(device);
+        if (!d) {
+          return {
+            content: [{ type: "text" as const, text: `Echo device not found: ${device}` }],
+            isError: true,
+          };
+        }
+        const text = state === "on" ? `turn on ${name}` : `turn off ${name}`;
+        await client.command(d.serialNumber, d.deviceType, d.deviceOwnerCustomerId, text);
         return {
-          content: [{ type: "text" as const, text: `Done: ${action} ${app.friendlyName} (direct control)` }],
+          content: [{ type: "text" as const, text: `Sent "${text}" via ${d.accountName} (voice fallback)` }],
         };
-      }
-      if (!device) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Could not resolve "${name}" to a controllable device. Try list_appliances to see names. If the device exists, provide 'device' for voice fallback.`,
-            },
-          ],
+      } catch (e) {
+        return matchErrorContent(e) ?? {
+          content: [{ type: "text" as const, text: String(e) }],
           isError: true,
         };
       }
-      const d = await client.resolveDevice(device);
-      if (!d) {
-        return {
-          content: [{ type: "text" as const, text: `Echo device not found: ${device}` }],
-          isError: true,
-        };
-      }
-      const text = state === "on" ? `turn on ${name}` : `turn off ${name}`;
-      await client.command(d.serialNumber, d.deviceType, d.deviceOwnerCustomerId, text);
-      return {
-        content: [{ type: "text" as const, text: `Sent "${text}" via ${d.accountName} (voice fallback)` }],
-      };
     }
   );
 
@@ -402,28 +449,40 @@ export function registerAlexaTools(
     {
       title: "List Group Members",
       description:
-        "List all smart home devices in a named room group (e.g. 'Kitchen', 'Living room'). Returns full appliance info for each member.",
+        "List smart home devices in a named room group. Returns {group, members, unresolved} — unresolved are stale group endpoint IDs that no longer match a known appliance.",
       inputSchema: z.object({
         groupName: z.string().describe("Room group name (e.g. 'Kitchen', 'Living room')"),
       }),
     },
     async ({ groupName }) => {
       const client = await clientFactory();
-      const members = await client.listGroupMembers(groupName);
-      if (members.length === 0) {
+      try {
+        const result = await client.listGroupMembers(groupName);
+        if (!result) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `No group found matching "${groupName}". Use list_device_groups to see groups.`,
+              },
+            ],
+            isError: true,
+          };
+        }
         return {
-          content: [{ type: "text" as const, text: `No group found matching "${groupName}". Use list_device_groups to see groups.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text" as const, text: String(e) }],
           isError: true,
         };
       }
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(members, null, 2),
-          },
-        ],
-      };
     }
   );
 
@@ -446,29 +505,40 @@ export function registerAlexaTools(
     async ({ group, state, lightsOnly }) => {
       const client = await clientFactory();
       const action = state === "on" ? "turnOn" : "turnOff";
-      const { controlled, errors } = await client.controlAppliancesByGroup(group, action, { lightsOnly });
-      const lines: string[] = [];
-      if (controlled.length > 0) {
-        lines.push(`Done: ${action} → ${controlled.join(", ")}`);
-      }
-      if (errors.length > 0) {
-        lines.push(`Errors: ${errors.join("; ")}`);
-      }
-      if (controlled.length === 0 && errors.length === 0) {
+      try {
+        const result = await client.controlAppliancesByGroup(group, action, { lightsOnly });
+        const { controlled, errors, unresolved, success, partial } = result;
+        if (controlled.length === 0 && errors.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  error: `No lights found in group "${group}". Use list_device_groups and list_appliances to inspect.`,
+                  unresolved,
+                  success: false,
+                  partial: false,
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
         return {
           content: [
             {
               type: "text" as const,
-              text: `No lights found in group "${group}". Use list_device_groups and list_appliances to inspect.`,
+              text: JSON.stringify({ action, group, controlled, errors, unresolved, success, partial }),
             },
           ],
+          isError: !success && !partial,
+        };
+      } catch (e) {
+        return {
+          content: [{ type: "text" as const, text: String(e) }],
           isError: true,
         };
       }
-      return {
-        content: [{ type: "text" as const, text: lines.join("\n") }],
-        isError: errors.length > 0 && controlled.length === 0,
-      };
     }
   );
 

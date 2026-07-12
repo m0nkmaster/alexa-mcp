@@ -10,12 +10,15 @@
 ## Agent-Oriented Improvements (DONE)
 ✅ All control commands return live device state (power, brightness, colorTemp) as JSON after applying
 ✅ `status <name>` CLI command + `alexa_device_status` MCP tool for state query without control action
-✅ `group-members <group>` CLI command + `alexa_group_members` MCP tool for post-action group verification
+✅ `group-members <group>` CLI command + `alexa_group_members` MCP tool — returns `{group, members, unresolved}`
 ✅ `batchControlAppliances` returns per-device `{entityId, success, error?}` result array
 ✅ `run --name / --partial` CLI + `name`/`partial` params on `alexa_run_routine` MCP tool
 ✅ `appliances --type <light|switch|plug|sensor|camera>` filter in CLI and `alexa_list_appliances`
-✅ `displayName` field on appliance output with 4-char endpoint suffix for duplicate disambiguation
+✅ Name matching: exact → startsWith → contains, with ambiguous-match suggestions
 ✅ `resolveAppliancesByPattern` fuzzy fallback: OR-match if all-word AND-match returns 0 results
+✅ Partial failures: `success`/`partial` flags + CLI exit code `2` for group/pattern/batch
+✅ `--dry-run` on `switch-group`, `switch-room`, `batch-control`
+✅ `announce` clarified as all-device broadcast; `speak --text` / `--device` flag form supported
 
 ## TODO
 

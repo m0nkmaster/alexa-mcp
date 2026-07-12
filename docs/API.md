@@ -451,7 +451,7 @@ The app does **not** let you pick which Echo answers; the request carries the **
 - **Response:** Multipart with directives; e.g. **Speak** (TTS reply), then **RequestProcessingComplete**.
 
 **TTS to specific Echo:** `POST /api/behaviors/preview` with `type: "Alexa.Speak"` and `operationPayload: { deviceType, deviceSerialNumber, customerId, locale, textToSpeak }`. Implemented.  
-**Announce to all:** `POST /api/behaviors/preview` with `type: "AlexaAnnouncement"` and `operationPayload: { content: [{ locale, display: { title, body }, speak: { type: "text", value } }], target: { customerId } }`. Implemented.
+**Announce to all:** `POST /api/behaviors/preview` with `type: "AlexaAnnouncement"` and `operationPayload: { content: [{ locale, display: { title, body }, speak: { type: "text", value } }], target: { customerId } }`. Implemented. Device-specific announce is not supported by this payload shape — use `Alexa.Speak` / `speak` for one device.
 
 ---
 

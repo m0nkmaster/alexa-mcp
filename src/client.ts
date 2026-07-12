@@ -1,6 +1,13 @@
 import { getConfig, type Domain } from "./config.js";
 import { authenticate, type AlexaCredentials } from "./auth.js";
 import { fetch } from "undici";
+import {
+  AmbiguousMatchError,
+  controlResultFlags,
+  resolveUniqueMatch,
+} from "./match.js";
+
+export { AmbiguousMatchError } from "./match.js";
 
 export interface Device {
   accountName: string;
@@ -45,6 +52,30 @@ export interface DeviceGroup {
 export interface DeviceGroupWithAppliances extends DeviceGroup {
   /** Chr entity IDs (UUIDs) for direct control; use as amzn1.alexa.endpoint.{id} for GraphQL. */
   chrEntityIds: string[];
+}
+
+export interface GroupMembersResult {
+  group: string;
+  groupId: string;
+  members: Appliance[];
+  /** Stale group endpoint IDs that no longer resolve to a known appliance. */
+  unresolved: string[];
+}
+
+export interface ControlTarget {
+  name: string;
+  endpointId: string;
+  resolved: boolean;
+}
+
+export interface GroupControlResult {
+  controlled: string[];
+  errors: string[];
+  unresolved: string[];
+  success: boolean;
+  partial: boolean;
+  /** Present when dryRun: planned targets without controlling. */
+  planned?: ControlTarget[];
 }
 
 export interface AudioGroup {
@@ -550,14 +581,9 @@ export class AlexaClient {
 
   async resolveDevice(deviceQuery: string): Promise<Device | null> {
     const devices = await this.getDevices();
-    const q = deviceQuery.toLowerCase().trim();
     const bySerial = devices.find((d) => d.serialNumber === deviceQuery);
     if (bySerial) return bySerial;
-    const byName = devices.find((d) =>
-      d.accountName.toLowerCase().includes(q)
-    );
-    if (byName) return byName;
-    return null;
+    return resolveUniqueMatch(devices, deviceQuery, (d) => d.accountName);
   }
 
   async speak(
@@ -783,24 +809,26 @@ export class AlexaClient {
 
   /**
    * Resolve smart home device by friendly name.
-   * Matching priority: exact match > name contains query > query contains name.
-   * Only the last fallback (query contains name) allows shorter names to match longer queries.
+   * Matching priority: exact > startsWith > contains. Ambiguous matches throw AmbiguousMatchError.
+   * Last resort: unique reverse match (query contains a short device name).
    */
   async resolveApplianceByName(name: string): Promise<Appliance | null> {
     const appliances = await this.listAppliances();
+    const matched = resolveUniqueMatch(appliances, name, (a) => a.friendlyName ?? "");
+    if (matched) return matched;
     const q = name.toLowerCase().trim();
-    const exact = appliances.find((a) => (a.friendlyName?.toLowerCase().trim() ?? "") === q);
-    if (exact) return exact;
-    const partial = appliances.find((a) => {
-      const fn = a.friendlyName?.toLowerCase().trim() ?? "";
-      return fn.includes(q);
-    });
-    if (partial) return partial;
-    const reverse = appliances.find((a) => {
+    const reverse = appliances.filter((a) => {
       const fn = a.friendlyName?.toLowerCase().trim() ?? "";
       return fn.length > 2 && q.includes(fn);
     });
-    return reverse ?? null;
+    if (reverse.length === 1) return reverse[0];
+    if (reverse.length > 1) {
+      throw new AmbiguousMatchError(
+        name,
+        reverse.map((a) => a.friendlyName ?? a.entityId)
+      );
+    }
+    return null;
   }
 
   /**
@@ -833,27 +861,54 @@ export class AlexaClient {
   /**
    * Control all appliances matching a pattern (e.g. "kitchen lights").
    * Uses direct GraphQL/phoenix control—avoids profile/account issues from voice commands.
-   * Returns names of controlled devices and any errors.
+   * Returns names of controlled devices, errors, and success/partial flags.
    */
   async controlAppliancesByPattern(
     pattern: string,
-    action: "turnOn" | "turnOff"
-  ): Promise<{ controlled: string[]; errors: string[] }> {
+    action: "turnOn" | "turnOff",
+    options?: { dryRun?: boolean }
+  ): Promise<{
+    controlled: string[];
+    errors: string[];
+    success: boolean;
+    partial: boolean;
+    planned?: ControlTarget[];
+  }> {
     const appliances = await this.resolveAppliancesByPattern(pattern);
     const id = (a: Appliance) => a.endpointId ?? a.entityId;
     const targets = appliances
-      .map((a) => ({ eid: id(a), name: a.friendlyName ?? a.entityId }))
-      .filter((t): t is { eid: string; name: string } => !!t.eid);
+      .map((a) => ({
+        endpointId: id(a) ?? "",
+        name: a.friendlyName ?? a.entityId,
+        resolved: true as const,
+      }))
+      .filter((t) => !!t.endpointId);
     const errors = appliances
       .filter((a) => !id(a))
       .map((a) => `${a.friendlyName ?? "?"}: no endpointId/entityId`);
-    const results = await Promise.allSettled(targets.map((t) => this.controlAppliance(t.eid, action)));
+
+    if (options?.dryRun) {
+      const planned: ControlTarget[] = targets.map((t) => ({
+        name: t.name,
+        endpointId: t.endpointId,
+        resolved: true,
+      }));
+      return {
+        controlled: [],
+        errors,
+        planned,
+        success: planned.length > 0,
+        partial: false,
+      };
+    }
+
+    const results = await Promise.allSettled(targets.map((t) => this.controlAppliance(t.endpointId, action)));
     const controlled: string[] = [];
     results.forEach((r, i) => {
       if (r.status === "fulfilled") controlled.push(targets[i].name);
       else errors.push(`${targets[i].name}: ${String(r.reason)}`);
     });
-    return { controlled, errors };
+    return { controlled, errors, ...controlResultFlags(controlled.length, errors.length) };
   }
 
   async controlAppliance(
@@ -1050,14 +1105,14 @@ export class AlexaClient {
   }
 
   /**
-   * List all Appliance members of a named room/space group.
-   * Resolves group chrEntityIds back to Appliance objects from listAppliances.
+   * List Appliance members of a named room/space group.
+   * Separates resolved appliances from unresolved/stale group endpoint IDs.
+   * Returns null if no group matches.
    */
-  async listGroupMembers(groupName: string): Promise<Appliance[]> {
+  async listGroupMembers(groupName: string): Promise<GroupMembersResult | null> {
     const groups = await this.listDeviceGroupsWithAppliances();
-    const q = groupName.toLowerCase().trim();
-    const group = groups.find((g) => g.name.toLowerCase() === q || g.name.toLowerCase().includes(q));
-    if (!group) return [];
+    const group = resolveUniqueMatch(groups, groupName, (g) => g.name);
+    if (!group) return null;
     const appliances = await this.listAppliances();
     const uuidToAppliance = new Map<string, Appliance>();
     for (const a of appliances) {
@@ -1068,16 +1123,22 @@ export class AlexaClient {
       }
     }
     const members: Appliance[] = [];
+    const unresolved: string[] = [];
     for (const chrId of group.chrEntityIds) {
       const app = uuidToAppliance.get(chrId.toLowerCase());
       if (app) {
         members.push(app);
       } else {
         const endpointId = chrId.includes(".") ? chrId : `amzn1.alexa.endpoint.${chrId}`;
-        members.push({ entityId: endpointId, endpointId, friendlyName: chrId, isReachable: true });
+        unresolved.push(endpointId);
       }
     }
-    return members;
+    return {
+      group: group.name,
+      groupId: group.groupId,
+      members,
+      unresolved,
+    };
   }
 
   /** GET /api/phoenix/group — room/space groups (Living room, Kitchen, etc.) with appliance membership. */
@@ -1115,15 +1176,16 @@ export class AlexaClient {
    * Control appliances in a room/space group by name (e.g. "Kitchen").
    * Uses chrEntityIds from phoenix group → amzn1.alexa.endpoint.{id} for GraphQL.
    * lightsOnly (default true) filters to devices with light/lamp/bulb in friendlyName when available.
+   * Unresolved/stale endpoint IDs are skipped by default (reported in `unresolved`);
+   * pass includeUnresolved to attempt control on raw IDs.
    */
   async controlAppliancesByGroup(
     groupName: string,
     action: "turnOn" | "turnOff",
-    options?: { lightsOnly?: boolean }
-  ): Promise<{ controlled: string[]; errors: string[] }> {
+    options?: { lightsOnly?: boolean; includeUnresolved?: boolean; dryRun?: boolean }
+  ): Promise<GroupControlResult> {
     const groups = await this.listDeviceGroupsWithAppliances();
-    const q = groupName.toLowerCase().trim();
-    const group = groups.find((g) => g.name.toLowerCase() === q || g.name.toLowerCase().includes(q));
+    const group = resolveUniqueMatch(groups, groupName, (g) => g.name);
     if (!group) {
       throw new Error(`Group not found: "${groupName}". Use list_device_groups to see groups.`);
     }
@@ -1137,15 +1199,36 @@ export class AlexaClient {
       }
     }
     const lightsOnly = options?.lightsOnly ?? true;
+    const includeUnresolved = options?.includeUnresolved ?? false;
     const lightRe = /light|lamp|bulb/i;
-    const targets: { endpointId: string; name: string }[] = [];
+    const targets: ControlTarget[] = [];
+    const unresolved: string[] = [];
     for (const chrId of group.chrEntityIds) {
       const app = uuidToAppliance.get(chrId.toLowerCase());
-      const name = app?.friendlyName ?? chrId;
-      if (lightsOnly && app && !lightRe.test(name)) continue; // skip non-lights when we have friendlyName
       const endpointId = chrId.includes(".") ? chrId : `amzn1.alexa.endpoint.${chrId}`;
-      targets.push({ endpointId, name });
+      if (!app) {
+        unresolved.push(endpointId);
+        if (includeUnresolved) {
+          targets.push({ endpointId, name: endpointId, resolved: false });
+        }
+        continue;
+      }
+      const name = app.friendlyName ?? chrId;
+      if (lightsOnly && !lightRe.test(name)) continue;
+      targets.push({ endpointId, name, resolved: true });
     }
+
+    if (options?.dryRun) {
+      return {
+        controlled: [],
+        errors: [],
+        unresolved,
+        planned: targets,
+        success: targets.length > 0,
+        partial: false,
+      };
+    }
+
     const results = await Promise.allSettled(
       targets.map((t) => this.controlAppliance(t.endpointId, action))
     );
@@ -1155,7 +1238,12 @@ export class AlexaClient {
       if (r.status === "fulfilled") controlled.push(targets[i].name);
       else errors.push(`${targets[i].name}: ${String(r.reason)}`);
     });
-    return { controlled, errors };
+    return {
+      controlled,
+      errors,
+      unresolved,
+      ...controlResultFlags(controlled.length, errors.length),
+    };
   }
 
   /** GET /api/wholeHomeAudio/v1/groups — multi-room audio speaker groups (Downstairs, Everywhere, etc.). */
