@@ -37,8 +37,9 @@ Track of scenarios we want to achieve via the Alexa MCP server/CLI. Each story i
 
 **Implementation notes**
 
-- `alexa_switch_by_name` with name like "Kitchen" or "Kitchen lights", or `alexa_control_appliance` with the right endpointId.
-- Groups may be supported via layout/GraphQL; name resolution may map to group or individual endpoints.
+- `alexa_control_by_group` with group name "Kitchen" (uses `alexa_group_members` internally).
+- `alexa_control_by_pattern` with pattern "kitchen lights" (fuzzy fallback means "Kitchen spot 1-6" is matched even without the word "lights").
+- Use `alexa_group_members` to verify which devices were turned on.
 
 ---
 
@@ -145,8 +146,8 @@ Stories that fit current or planned API surface and common use cases:
 | #   | Scenario                                       | Why add                                                              | MCP / API                                                              |
 | --- | ---------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | 8   | **Set an alarm for 7am** (wake-up)             | Alarms API is documented (list/create); natural extension of timers. | Alarms endpoints (list/create); alarms auth TBC.                       |
-| 9   | **Run my "Good morning" routine**              | Routines are supported (list + run).                                 | `alexa_list_routines`, `alexa_run_routine`.                            |
-| 10  | **Turn off all lights downstairs**             | Common request; may be a group or routine.                           | Switch by name / control; or run routine "Turn off downstairs lights". |
+| 9   | **Run my "Good morning" routine**              | Routines are supported (list + run by name/partial).                 | `alexa_list_routines`, `alexa_run_routine` (with `name` or `partial`). |
+| 10  | **Turn off all lights downstairs**             | Common request; may be a group or routine.                           | `alexa_control_by_group` "Downstairs"; or `run --partial "downstairs lights"`. |
 | 11  | **Set volume to 50% on Kitchen Echo**          | Device volume endpoints exist in API.                                | Volume API (GET/PUT); not yet exposed in MCP tools.                    |
 | 12  | **Is anything playing in the lounge?**         | Now-playing is supported (EU/UK).                                    | `alexa_now_playing` for state.                                         |
 | 13  | **Pause the music in the lounge**              | Media control is supported.                                          | `alexa_media_control` (pause).                                         |
@@ -161,18 +162,18 @@ Stories that fit current or planned API surface and common use cases:
 ## Summary
 
 
-| Status                  | Count     | Notes                                                                    |
-| ----------------------- | --------- | ------------------------------------------------------------------------ |
-| **Supported today**     | 1–4, 6, 7 | Via switch/control, speak/announce, command, media control, now-playing. |
-| **Partially supported** | 5         | Timer creation not yet implemented (API gap).                            |
-| **Suggested**           | 8–17      | Alarms, routines, volume, DND, reminders, temperature, shopping list.    |
+| Status                  | Count          | Notes                                                                                           |
+| ----------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| **Supported today**     | 1–4, 6, 7, 9 | Via switch/control (with state verification), speak/announce, command, media, routines by name. |
+| **Partially supported** | 5              | Timer creation not yet implemented (API gap).                                                   |
+| **Suggested**           | 8, 10–17       | Alarms, volume, DND, reminders, temperature, shopping list.                                     |
 
 
 ---
 
 ## Document info
 
-- **Last updated:** 2026-03-09  
+- **Last updated:** 2026-04-10  
 - **Source:** User scenarios + README + docs/API.md  
 - **Next:** Prioritise timer/reminder API capture and alarm auth; then volume/DND/temperature tools if desired.
 

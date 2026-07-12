@@ -7,6 +7,19 @@
 - Example: Lounge Lamp (socket) → `["power", "commissionable"]`
 - Note: The layouts API (`/api/smarthome/v1/presentation/devices/control`) returns empty templates; the app uses GraphQL instead
 
+## Agent-Oriented Improvements (DONE)
+✅ All control commands return live device state (power, brightness, colorTemp) as JSON after applying
+✅ `status <name>` CLI command + `alexa_device_status` MCP tool for state query without control action
+✅ `group-members <group>` CLI command + `alexa_group_members` MCP tool — returns `{group, members, unresolved}`
+✅ `batchControlAppliances` returns per-device `{entityId, success, error?}` result array
+✅ `run --name / --partial` CLI + `name`/`partial` params on `alexa_run_routine` MCP tool
+✅ `appliances --type <light|switch|plug|sensor|camera>` filter in CLI and `alexa_list_appliances`
+✅ Name matching: exact → startsWith → contains, with ambiguous-match suggestions
+✅ `resolveAppliancesByPattern` fuzzy fallback: OR-match if all-word AND-match returns 0 results
+✅ Partial failures: `success`/`partial` flags + CLI exit code `2` for group/pattern/batch
+✅ `--dry-run` on `switch-group`, `switch-room`, `batch-control`
+✅ `announce` clarified as all-device broadcast; `speak --text` / `--device` flag form supported
+
 ## TODO
 
 ### High Priority
@@ -59,10 +72,11 @@
 - Add pre-flight capability checks to prevent invalid operations
 - Status: Partially solved via capabilities array
 
-**Device Type Detection**
-- Infer device type from capabilities (socket, bulb, white-spectrum bulb, RGB bulb)
+**Device Type Detection** *(Partially DONE)*
+- `appliances --type <light|switch|plug|sensor|camera>` filter now available in CLI and MCP
+- Infer full device type (socket, bulb, white-spectrum, RGB) from capabilities
 - Helper function exists in `docs/DEVICE-CAPABILITIES.md`
-- Status: Partially solved via capabilities array
+- Status: Filtering done; richer type taxonomy (RGB vs white-spectrum) still pending
 
 **GraphQL `endpoints()` Query Exploration**
 - Test if GraphQL `endpoints(endpointsQueryParams)` can replace REST `/api/smarthome/v2/endpoints`

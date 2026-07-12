@@ -16,7 +16,7 @@ Our implementation uses the correct types, field names, and mutation shapes as c
 
 **Implementation:** `ENDPOINT_FEATURES_QUERY` constant, used by:
 - `fetchEndpointCapabilities()` — Batch query for capabilities
-- `getBrightnessState()` — Query current state
+- `getEndpointState()` — Query current state
 
 **Schema verification:**
 ```

@@ -1,6 +1,13 @@
 import { getConfig, type Domain } from "./config.js";
 import { authenticate, type AlexaCredentials } from "./auth.js";
 import { fetch } from "undici";
+import {
+  AmbiguousMatchError,
+  controlResultFlags,
+  resolveUniqueMatch,
+} from "./match.js";
+
+export { AmbiguousMatchError } from "./match.js";
 
 export interface Device {
   accountName: string;
@@ -45,6 +52,30 @@ export interface DeviceGroup {
 export interface DeviceGroupWithAppliances extends DeviceGroup {
   /** Chr entity IDs (UUIDs) for direct control; use as amzn1.alexa.endpoint.{id} for GraphQL. */
   chrEntityIds: string[];
+}
+
+export interface GroupMembersResult {
+  group: string;
+  groupId: string;
+  members: Appliance[];
+  /** Stale group endpoint IDs that no longer resolve to a known appliance. */
+  unresolved: string[];
+}
+
+export interface ControlTarget {
+  name: string;
+  endpointId: string;
+  resolved: boolean;
+}
+
+export interface GroupControlResult {
+  controlled: string[];
+  errors: string[];
+  unresolved: string[];
+  success: boolean;
+  partial: boolean;
+  /** Present when dryRun: planned targets without controlling. */
+  planned?: ControlTarget[];
 }
 
 export interface AudioGroup {
@@ -105,24 +136,25 @@ export class AlexaClient {
     }
     const res = await fetch(fullUrl, init as import("undici").RequestInit);
     const text = await res.text();
+    if (process.env.ALEXA_DEBUG) {
+      const bodyPreview = text.slice(0, 500);
+      console.error(`[alexa-mcp] ${opts.method} ${fullUrl} → ${res.status} (${text.length}b): ${bodyPreview}`);
+    }
     if (!res.ok) {
-      if (process.env.ALEXA_DEBUG) {
-        console.error(`[alexa-mcp] ${opts.method} ${fullUrl} → ${res.status}: ${text.slice(0, 200)}`);
-      }
       if (opts.throwOnError) {
         const prefix = opts.errorPrefix ?? "API error ";
         throw new Error(`${prefix}${res.status}: ${text.slice(0, 200)}`);
       }
-      return undefined as T;
+      return {} as T;
     }
-    if (!text.trim()) return undefined as T;
+    if (!text.trim()) return {} as T;
     try {
       return JSON.parse(text) as T;
     } catch (e) {
       if (process.env.ALEXA_DEBUG) {
         console.error(`[alexa-mcp] Failed to parse response as JSON:`, e);
       }
-      return undefined as T;
+      return {} as T;
     }
   }
 
@@ -252,7 +284,7 @@ export class AlexaClient {
   ): Promise<void> {
     if (action === "setBrightness") {
       if (brightness === undefined) throw new Error("brightness required for setBrightness");
-      await this.postGraphql({
+      const result = (await this.postGraphql({
         operationName: "setBrightness",
         variables: {
           endpointId,
@@ -277,12 +309,13 @@ export class AlexaClient {
     __typename
   }
 }`,
-      });
+      })) as { data?: { setEndpointFeatures?: { errors?: Array<{ code: string; message: string }> } }; errors?: Array<{ message: string }> };
+      this.throwOnGraphqlErrors(result);
       return;
     }
     if (action === "setColorTemperature") {
       if (colorTemperatureInKelvin === undefined) throw new Error("colorTemperatureInKelvin required for setColorTemperature");
-      await this.postGraphql({
+      const result = (await this.postGraphql({
         operationName: "setColorTemperature",
         variables: {
           endpointId,
@@ -312,11 +345,12 @@ export class AlexaClient {
     __typename
   }
 }`,
-      });
+      })) as { data?: { setEndpointFeatures?: { errors?: Array<{ code: string; message: string }> } }; errors?: Array<{ message: string }> };
+      this.throwOnGraphqlErrors(result);
       return;
     }
     const featureOp = action === "turnOn" ? "turnOn" : "turnOff";
-    await this.postGraphql({
+    const result = (await this.postGraphql({
       operationName: "setPower",
       variables: {
         endpointId,
@@ -324,13 +358,36 @@ export class AlexaClient {
       },
       query:
         "mutation setPower($endpointId: String, $featureOperationName: FeatureOperationName!) { setEndpointFeatures(setEndpointFeaturesInput: {featureControlRequests: [{endpointId: $endpointId, featureName: power, featureOperationName: $featureOperationName}]}) { featureControlResponses { code endpointId featureOperationName __typename } errors { code message featureOperationName __typename } __typename } }",
-    });
+    })) as {
+      data?: {
+        setEndpointFeatures?: {
+          featureControlResponses?: Array<{ code: string; endpointId: string }>;
+          errors?: Array<{ code: string; message: string }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+    const gqlErrors = result?.errors;
+    const mutationErrors = result?.data?.setEndpointFeatures?.errors;
+    const responses = result?.data?.setEndpointFeatures?.featureControlResponses;
+    if (gqlErrors?.length) {
+      throw new Error(`GraphQL error: ${gqlErrors.map(e => e.message).join("; ")}`);
+    }
+    if (mutationErrors?.length) {
+      throw new Error(`Control error: ${mutationErrors.map(e => `${e.code}: ${e.message}`).join("; ")}`);
+    }
+    if (responses?.length && responses.some(r => r.code !== "SUCCESS")) {
+      const failed = responses.filter(r => r.code !== "SUCCESS");
+      throw new Error(`Control failed: ${failed.map(r => `${r.endpointId}: ${r.code}`).join("; ")}`);
+    }
   }
 
   /**
    * Batch POST /nexus/v1/graphql — control multiple endpoints at once.
    * Uses setEndpointFeatures mutation with multiple featureControlRequests.
    * Much faster than individual requests for many devices.
+   * Returns featureControlResponses array with per-endpoint {endpointId, code} so callers can
+   * report per-device success/failure.
    */
   private async graphqlBatchControl(
     requests: Array<{
@@ -339,8 +396,8 @@ export class AlexaClient {
       brightness?: number;
       colorTemperatureInKelvin?: number;
     }>
-  ): Promise<void> {
-    if (requests.length === 0) return;
+  ): Promise<Array<{ endpointId: string; code: string }>> {
+    if (requests.length === 0) return [];
 
     // Build featureControlRequests array using GraphQL variables to avoid injection
     const featureControlRequests = requests.map((req) => {
@@ -371,7 +428,7 @@ export class AlexaClient {
       }
     });
 
-    await this.postGraphql({
+    const result = (await this.postGraphql({
       operationName: "batchSetEndpointFeatures",
       variables: { featureControlRequests },
       query: `mutation batchSetEndpointFeatures($featureControlRequests: [FeatureControlRequest!]!) {
@@ -393,7 +450,14 @@ export class AlexaClient {
     __typename
   }
 }`,
-    });
+    })) as {
+      data?: {
+        setEndpointFeatures?: {
+          featureControlResponses?: Array<{ code: string; endpointId: string; featureOperationName: string }>;
+        };
+      };
+    };
+    return result?.data?.setEndpointFeatures?.featureControlResponses ?? [];
   }
 
   /** POST to nexus/v1/graphql with app-like headers (matches Alexa mobile app). */
@@ -422,6 +486,26 @@ export class AlexaClient {
       extraHeaders: this.graphqlHeaders(),
     });
     return Array.isArray(result) ? result : [];
+  }
+
+  /** Throw if a GraphQL mutation response contains errors. */
+  private throwOnGraphqlErrors(result: {
+    data?: { setEndpointFeatures?: { featureControlResponses?: Array<{ code: string; endpointId: string }>; errors?: Array<{ code: string; message: string }> } };
+    errors?: Array<{ message: string }>;
+  }): void {
+    const gqlErrors = result?.errors;
+    const mutationErrors = result?.data?.setEndpointFeatures?.errors;
+    const responses = result?.data?.setEndpointFeatures?.featureControlResponses;
+    if (gqlErrors?.length) {
+      throw new Error(`GraphQL error: ${gqlErrors.map(e => e.message).join("; ")}`);
+    }
+    if (mutationErrors?.length) {
+      throw new Error(`Control error: ${mutationErrors.map(e => `${e.code}: ${e.message}`).join("; ")}`);
+    }
+    if (responses?.length && responses.some(r => r.code !== "SUCCESS")) {
+      const failed = responses.filter(r => r.code !== "SUCCESS");
+      throw new Error(`Control failed: ${failed.map(r => `${r.endpointId}: ${r.code}`).join("; ")}`);
+    }
   }
 
   private graphqlHeaders(): Record<string, string> {
@@ -457,10 +541,11 @@ export class AlexaClient {
       query: AlexaClient.FRIENDLY_NAME_QUERY,
     }));
     const results = await this.postGraphqlBatch(bodies);
-    for (let i = 0; i < amzn.length; i++) {
-      const r = results[i] as { data?: { endpoint?: { friendlyNameObject?: { value?: { text?: string } } } } } | undefined;
+    for (const result of results) {
+      const r = result as { data?: { endpoint?: { id?: string; friendlyNameObject?: { value?: { text?: string } } } } } | undefined;
+      const id = r?.data?.endpoint?.id;
       const text = r?.data?.endpoint?.friendlyNameObject?.value?.text;
-      if (text) map.set(amzn[i], text);
+      if (id && text) map.set(id, text);
     }
     return map;
   }
@@ -517,14 +602,9 @@ export class AlexaClient {
 
   async resolveDevice(deviceQuery: string): Promise<Device | null> {
     const devices = await this.getDevices();
-    const q = deviceQuery.toLowerCase().trim();
     const bySerial = devices.find((d) => d.serialNumber === deviceQuery);
     if (bySerial) return bySerial;
-    const byName = devices.find((d) =>
-      d.accountName.toLowerCase().includes(q)
-    );
-    if (byName) return byName;
-    return null;
+    return resolveUniqueMatch(devices, deviceQuery, (d) => d.accountName);
   }
 
   async speak(
@@ -692,33 +772,94 @@ export class AlexaClient {
     } else {
       appliances = parseSmarthomeV2Response(r.data, undefined, undefined, capabilitiesMap);
     }
-    return appliances.map((a) => ({
+    const filtered = AlexaClient.filterSmartHomeAppliances(appliances);
+    const deduped = AlexaClient.deduplicateAppliances(filtered);
+    return deduped.map((a) => ({
       endpointId: a.endpointId,
-      entityId: a.entityId,
+      entityId: a.endpointId ?? a.entityId,
       friendlyName: a.friendlyName,
       isReachable: a.isReachable,
       capabilities: a.capabilities,
     }));
   }
 
-  /** Resolve smart home device by friendly name (case-insensitive partial match). Prefer direct GraphQL control. */
+  /**
+   * Filter out non-device endpoints from the raw layout list.
+   * Removes Fire TV apps (package names), Alexa scenes, Echo devices,
+   * VSK endpoints, FireTV launchers, and other non-controllable entries.
+   */
+  private static filterSmartHomeAppliances(appliances: Appliance[]): Appliance[] {
+    const appPackagePattern = /^(com\s|uk\s|org\s)/i;
+    const nonDeviceNames = /^(firetv launcher|alexa vsk at unknown)$/i;
+    const echoOnlyCaps = new Set(["speaker", "bluetooth", "temperatureSensor", "motionSensor", "detectionEvents"]);
+    return appliances.filter((a) => {
+      const name = a.friendlyName?.trim() ?? "";
+      const caps = a.capabilities ?? [];
+      if (appPackagePattern.test(name)) return false;
+      if (nonDeviceNames.test(name)) return false;
+      if (caps.length === 0) return false;
+      if (caps.every((c) => echoOnlyCaps.has(c))) return false;
+      return true;
+    });
+  }
+
+  /**
+   * Deduplicate appliances with the same friendly name.
+   * Keeps the endpoint with the most capabilities; breaks ties by keeping the last one
+   * (more recently registered endpoints tend to be at the end of the layout list).
+   */
+  private static deduplicateAppliances(appliances: Appliance[]): Appliance[] {
+    const byName = new Map<string, Appliance>();
+    for (const a of appliances) {
+      const key = a.friendlyName?.toLowerCase().trim() ?? "";
+      if (!key) continue;
+      const existing = byName.get(key);
+      if (!existing) {
+        byName.set(key, a);
+        continue;
+      }
+      const existingScore = (existing.capabilities ?? []).length;
+      const newScore = (a.capabilities ?? []).length;
+      if (newScore >= existingScore) {
+        byName.set(key, a);
+      }
+    }
+    const dedupedSet = new Set(Array.from(byName.values()).map((a) => a.endpointId ?? a.entityId));
+    return appliances.filter((a) => dedupedSet.has(a.endpointId ?? a.entityId));
+  }
+
+  /**
+   * Resolve smart home device by friendly name.
+   * Matching priority: exact > startsWith > contains. Ambiguous matches throw AmbiguousMatchError.
+   * Last resort: unique reverse match (query contains a short device name).
+   */
   async resolveApplianceByName(name: string): Promise<Appliance | null> {
     if (!name || !name.trim()) {
       throw new Error("Name cannot be empty. Provide a device name like 'Living room light'.");
     }
     const appliances = await this.listAppliances();
+    const matched = resolveUniqueMatch(appliances, name, (a) => a.friendlyName ?? "");
+    if (matched) return matched;
     const q = name.toLowerCase().trim();
-    const match = appliances.find((a) => {
-      const fn = a.friendlyName?.toLowerCase() ?? "";
-      return fn.includes(q) || q.includes(fn);
+    const reverse = appliances.filter((a) => {
+      const fn = a.friendlyName?.toLowerCase().trim() ?? "";
+      return fn.length > 2 && q.includes(fn);
     });
-    return match ?? null;
+    if (reverse.length === 1) return reverse[0];
+    if (reverse.length > 1) {
+      throw new AmbiguousMatchError(
+        name,
+        reverse.map((a) => a.friendlyName ?? a.entityId)
+      );
+    }
+    return null;
   }
 
   /**
    * Resolve smart home devices by pattern (e.g. "kitchen lights").
-   * Matches appliances whose friendlyName contains all space-separated words (case-insensitive).
-   * "lights" also matches "light" and vice versa. Returns all matches for room/group control.
+   * First tries AND matching (all words must appear in the name, with singular/plural tolerance).
+   * If no results, falls back to OR matching (any word matches) so "kitchen lights" still finds
+   * "Kitchen spot 1" even though "lights" doesn't appear in the name.
    */
   async resolveAppliancesByPattern(pattern: string): Promise<Appliance[]> {
     if (!pattern || !pattern.trim()) {
@@ -733,36 +874,68 @@ export class AlexaClient {
       if (!w.endsWith("s") && fn.includes(w + "s")) return true; // "light" → "lights"
       return false;
     };
-    return appliances.filter((a) => {
+    const andMatches = appliances.filter((a) => {
       const fn = a.friendlyName?.toLowerCase() ?? "";
       return words.every((w) => matchWord(fn, w));
+    });
+    if (andMatches.length > 0) return andMatches;
+    return appliances.filter((a) => {
+      const fn = a.friendlyName?.toLowerCase() ?? "";
+      return words.some((w) => matchWord(fn, w));
     });
   }
 
   /**
    * Control all appliances matching a pattern (e.g. "kitchen lights").
    * Uses direct GraphQL/phoenix control—avoids profile/account issues from voice commands.
-   * Returns names of controlled devices and any errors.
+   * Returns names of controlled devices, errors, and success/partial flags.
    */
   async controlAppliancesByPattern(
     pattern: string,
-    action: "turnOn" | "turnOff"
-  ): Promise<{ controlled: string[]; errors: string[] }> {
+    action: "turnOn" | "turnOff",
+    options?: { dryRun?: boolean }
+  ): Promise<{
+    controlled: string[];
+    errors: string[];
+    success: boolean;
+    partial: boolean;
+    planned?: ControlTarget[];
+  }> {
     const appliances = await this.resolveAppliancesByPattern(pattern);
     const id = (a: Appliance) => a.endpointId ?? a.entityId;
     const targets = appliances
-      .map((a) => ({ eid: id(a), name: a.friendlyName ?? a.entityId }))
-      .filter((t): t is { eid: string; name: string } => !!t.eid);
+      .map((a) => ({
+        endpointId: id(a) ?? "",
+        name: a.friendlyName ?? a.entityId,
+        resolved: true as const,
+      }))
+      .filter((t) => !!t.endpointId);
     const errors = appliances
       .filter((a) => !id(a))
       .map((a) => `${a.friendlyName ?? "?"}: no endpointId/entityId`);
-    const results = await Promise.allSettled(targets.map((t) => this.controlAppliance(t.eid, action)));
+
+    if (options?.dryRun) {
+      const planned: ControlTarget[] = targets.map((t) => ({
+        name: t.name,
+        endpointId: t.endpointId,
+        resolved: true,
+      }));
+      return {
+        controlled: [],
+        errors,
+        planned,
+        success: planned.length > 0,
+        partial: false,
+      };
+    }
+
+    const results = await Promise.allSettled(targets.map((t) => this.controlAppliance(t.endpointId, action)));
     const controlled: string[] = [];
     results.forEach((r, i) => {
       if (r.status === "fulfilled") controlled.push(targets[i].name);
       else errors.push(`${targets[i].name}: ${String(r.reason)}`);
     });
-    return { controlled, errors };
+    return { controlled, errors, ...controlResultFlags(controlled.length, errors.length) };
   }
 
   async controlAppliance(
@@ -834,62 +1007,56 @@ export class AlexaClient {
 
   /**
    * Batch control multiple appliances with the same action and values.
-   * Much faster than individual controlAppliance calls for many devices.
+   * GraphQL endpoints are sent as a single batched mutation (fast); Phoenix endpoints use
+   * individual Promise.allSettled calls.
+   * Returns a per-device result array: {entityId, success, error?}.
    */
   async batchControlAppliances(
     entityIds: string[],
     action: "turnOn" | "turnOff" | "setBrightness" | "setColorTemperature",
     brightness?: number,
     colorTemperatureInKelvin?: number
-  ): Promise<void> {
-    if (entityIds.length === 0) return;
+  ): Promise<Array<{ entityId: string; success: boolean; error?: string }>> {
+    if (entityIds.length === 0) return [];
+
+    const resultMap = new Map<string, { success: boolean; error?: string }>();
+    for (const id of entityIds) resultMap.set(id, { success: true });
 
     // Separate GraphQL and Phoenix endpoints
-    const graphqlRequests = entityIds
-      .filter(id => id.startsWith("amzn1.alexa.endpoint."))
-      .map(endpointId => ({
-        endpointId,
-        action,
-        brightness,
-        colorTemperatureInKelvin,
-      }));
+    const graphqlIds = entityIds.filter(id => id.startsWith("amzn1.alexa.endpoint."));
+    const phoenixIds = entityIds.filter(id => !id.startsWith("amzn1.alexa.endpoint."));
 
-    const phoenixRequests = entityIds
-      .filter(id => !id.startsWith("amzn1.alexa.endpoint."))
-      .map(entityId => {
-        const params: Record<string, unknown> = { action };
-        if (action === "setBrightness" && brightness !== undefined) {
-          params.brightness = brightness;
+    if (graphqlIds.length > 0) {
+      const graphqlRequests = graphqlIds.map(endpointId => ({ endpointId, action, brightness, colorTemperatureInKelvin }));
+      try {
+        const responses = await this.graphqlBatchControl(graphqlRequests);
+        for (const r of responses) {
+          if (r.code !== "SUCCESS") {
+            resultMap.set(r.endpointId, { success: false, error: r.code });
+          }
         }
-        if (action === "setColorTemperature" && colorTemperatureInKelvin !== undefined) {
-          params.colorTemperatureInKelvin = colorTemperatureInKelvin;
-        }
-        return {
-          entityId,
-          entityType: "APPLIANCE" as const,
-          parameters: params,
-        };
+      } catch (e) {
+        for (const id of graphqlIds) resultMap.set(id, { success: false, error: String(e) });
+      }
+    }
+
+    if (phoenixIds.length > 0) {
+      const phoenixResults = await Promise.allSettled(
+        phoenixIds.map(entityId => this.controlAppliance(entityId, action, brightness, colorTemperatureInKelvin))
+      );
+      phoenixIds.forEach((id, i) => {
+        const r = phoenixResults[i];
+        if (r.status === "rejected") resultMap.set(id, { success: false, error: String(r.reason) });
       });
-
-    // Execute batch requests in parallel
-    const promises: Promise<void>[] = [];
-
-    if (graphqlRequests.length > 0) {
-      promises.push(this.graphqlBatchControl(graphqlRequests));
     }
 
-    if (phoenixRequests.length > 0) {
-      promises.push(this.putApp("/api/phoenix/state", {
-        controlRequests: phoenixRequests,
-      }).then(() => {}));
-    }
-
-    await Promise.all(promises);
+    return entityIds.map(id => ({ entityId: id, ...resultMap.get(id)! }));
   }
 
   /**
    * Batch control multiple appliances with different actions/values.
-   * Maximum flexibility - each device can have different settings.
+   * Maximum flexibility — each device can have different settings.
+   * Returns a per-device result array: {entityId, success, error?}.
    */
   async batchControlAppliancesCustom(
     requests: Array<{
@@ -898,50 +1065,47 @@ export class AlexaClient {
       brightness?: number;
       colorTemperatureInKelvin?: number;
     }>
-  ): Promise<void> {
-    if (requests.length === 0) return;
+  ): Promise<Array<{ entityId: string; success: boolean; error?: string }>> {
+    if (requests.length === 0) return [];
 
-    // Separate GraphQL and Phoenix endpoints
-    const graphqlRequests = requests
-      .filter(req => req.entityId.startsWith("amzn1.alexa.endpoint."))
-      .map(({ entityId, action, brightness, colorTemperatureInKelvin }) => ({
+    const resultMap = new Map<string, { success: boolean; error?: string }>();
+    for (const req of requests) resultMap.set(req.entityId, { success: true });
+
+    const graphqlReqs = requests.filter(req => req.entityId.startsWith("amzn1.alexa.endpoint."));
+    const phoenixReqs = requests.filter(req => !req.entityId.startsWith("amzn1.alexa.endpoint."));
+
+    if (graphqlReqs.length > 0) {
+      const graphqlRequests = graphqlReqs.map(({ entityId, action, brightness, colorTemperatureInKelvin }) => ({
         endpointId: entityId,
         action,
         brightness,
         colorTemperatureInKelvin,
       }));
+      try {
+        const responses = await this.graphqlBatchControl(graphqlRequests);
+        for (const r of responses) {
+          if (r.code !== "SUCCESS") {
+            resultMap.set(r.endpointId, { success: false, error: r.code });
+          }
+        }
+      } catch (e) {
+        for (const req of graphqlReqs) resultMap.set(req.entityId, { success: false, error: String(e) });
+      }
+    }
 
-    const phoenixRequests = requests
-      .filter(req => !req.entityId.startsWith("amzn1.alexa.endpoint."))
-      .map(({ entityId, action, brightness, colorTemperatureInKelvin }) => {
-        const params: Record<string, unknown> = { action };
-        if (action === "setBrightness" && brightness !== undefined) {
-          params.brightness = brightness;
-        }
-        if (action === "setColorTemperature" && colorTemperatureInKelvin !== undefined) {
-          params.colorTemperatureInKelvin = colorTemperatureInKelvin;
-        }
-        return {
-          entityId,
-          entityType: "APPLIANCE" as const,
-          parameters: params,
-        };
+    if (phoenixReqs.length > 0) {
+      const phoenixResults = await Promise.allSettled(
+        phoenixReqs.map(({ entityId, action, brightness, colorTemperatureInKelvin }) =>
+          this.controlAppliance(entityId, action, brightness, colorTemperatureInKelvin)
+        )
+      );
+      phoenixReqs.forEach((req, i) => {
+        const r = phoenixResults[i];
+        if (r.status === "rejected") resultMap.set(req.entityId, { success: false, error: String(r.reason) });
       });
-
-    // Execute batch requests in parallel
-    const promises: Promise<void>[] = [];
-
-    if (graphqlRequests.length > 0) {
-      promises.push(this.graphqlBatchControl(graphqlRequests));
     }
 
-    if (phoenixRequests.length > 0) {
-      promises.push(this.putApp("/api/phoenix/state", {
-        controlRequests: phoenixRequests,
-      }).then(() => {}));
-    }
-
-    await Promise.all(promises);
+    return requests.map(req => ({ entityId: req.entityId, ...resultMap.get(req.entityId)! }));
   }
 
   /** Get full automation (includes sequence) from app API. Used for run. */
@@ -965,6 +1129,43 @@ export class AlexaClient {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * List Appliance members of a named room/space group.
+   * Separates resolved appliances from unresolved/stale group endpoint IDs.
+   * Returns null if no group matches.
+   */
+  async listGroupMembers(groupName: string): Promise<GroupMembersResult | null> {
+    const groups = await this.listDeviceGroupsWithAppliances();
+    const group = resolveUniqueMatch(groups, groupName, (g) => g.name);
+    if (!group) return null;
+    const appliances = await this.listAppliances();
+    const uuidToAppliance = new Map<string, Appliance>();
+    for (const a of appliances) {
+      const eid = a.endpointId ?? a.entityId;
+      if (eid) {
+        const uuid = eid.replace("amzn1.alexa.endpoint.", "");
+        uuidToAppliance.set(uuid.toLowerCase(), a);
+      }
+    }
+    const members: Appliance[] = [];
+    const unresolved: string[] = [];
+    for (const chrId of group.chrEntityIds) {
+      const app = uuidToAppliance.get(chrId.toLowerCase());
+      if (app) {
+        members.push(app);
+      } else {
+        const endpointId = chrId.includes(".") ? chrId : `amzn1.alexa.endpoint.${chrId}`;
+        unresolved.push(endpointId);
+      }
+    }
+    return {
+      group: group.name,
+      groupId: group.groupId,
+      members,
+      unresolved,
+    };
   }
 
   /** GET /api/phoenix/group — room/space groups (Living room, Kitchen, etc.) with appliance membership. */
@@ -1002,15 +1203,16 @@ export class AlexaClient {
    * Control appliances in a room/space group by name (e.g. "Kitchen").
    * Uses chrEntityIds from phoenix group → amzn1.alexa.endpoint.{id} for GraphQL.
    * lightsOnly (default true) filters to devices with light/lamp/bulb in friendlyName when available.
+   * Unresolved/stale endpoint IDs are skipped by default (reported in `unresolved`);
+   * pass includeUnresolved to attempt control on raw IDs.
    */
   async controlAppliancesByGroup(
     groupName: string,
     action: "turnOn" | "turnOff",
-    options?: { lightsOnly?: boolean }
-  ): Promise<{ controlled: string[]; errors: string[] }> {
+    options?: { lightsOnly?: boolean; includeUnresolved?: boolean; dryRun?: boolean }
+  ): Promise<GroupControlResult> {
     const groups = await this.listDeviceGroupsWithAppliances();
-    const q = groupName.toLowerCase().trim();
-    const group = groups.find((g) => g.name.toLowerCase() === q || g.name.toLowerCase().includes(q));
+    const group = resolveUniqueMatch(groups, groupName, (g) => g.name);
     if (!group) {
       throw new Error(`Group not found: "${groupName}". Use list_device_groups to see groups.`);
     }
@@ -1024,15 +1226,36 @@ export class AlexaClient {
       }
     }
     const lightsOnly = options?.lightsOnly ?? true;
+    const includeUnresolved = options?.includeUnresolved ?? false;
     const lightRe = /light|lamp|bulb/i;
-    const targets: { endpointId: string; name: string }[] = [];
+    const targets: ControlTarget[] = [];
+    const unresolved: string[] = [];
     for (const chrId of group.chrEntityIds) {
       const app = uuidToAppliance.get(chrId.toLowerCase());
-      const name = app?.friendlyName ?? chrId;
-      if (lightsOnly && app && !lightRe.test(name)) continue; // skip non-lights when we have friendlyName
       const endpointId = chrId.includes(".") ? chrId : `amzn1.alexa.endpoint.${chrId}`;
-      targets.push({ endpointId, name });
+      if (!app) {
+        unresolved.push(endpointId);
+        if (includeUnresolved) {
+          targets.push({ endpointId, name: endpointId, resolved: false });
+        }
+        continue;
+      }
+      const name = app.friendlyName ?? chrId;
+      if (lightsOnly && !lightRe.test(name)) continue;
+      targets.push({ endpointId, name, resolved: true });
     }
+
+    if (options?.dryRun) {
+      return {
+        controlled: [],
+        errors: [],
+        unresolved,
+        planned: targets,
+        success: targets.length > 0,
+        partial: false,
+      };
+    }
+
     const results = await Promise.allSettled(
       targets.map((t) => this.controlAppliance(t.endpointId, action))
     );
@@ -1042,7 +1265,12 @@ export class AlexaClient {
       if (r.status === "fulfilled") controlled.push(targets[i].name);
       else errors.push(`${targets[i].name}: ${String(r.reason)}`);
     });
-    return { controlled, errors };
+    return {
+      controlled,
+      errors,
+      unresolved,
+      ...controlResultFlags(controlled.length, errors.length),
+    };
   }
 
   /** GET /api/wholeHomeAudio/v1/groups — multi-room audio speaker groups (Downstairs, Everywhere, etc.). */
@@ -1082,6 +1310,16 @@ export class AlexaClient {
       status: r.status,
       type: r.type,
     }));
+  }
+
+  /** Resolve a routine by exact or partial name match (case-insensitive). */
+  async resolveRoutineByName(name: string, partial = false): Promise<Routine | null> {
+    const routines = await this.listRoutines();
+    const q = name.toLowerCase().trim();
+    if (partial) {
+      return routines.find((r) => r.name.toLowerCase().includes(q)) ?? null;
+    }
+    return routines.find((r) => r.name.toLowerCase() === q) ?? null;
   }
 
   async runRoutine(automationId: string, sequenceJson?: string): Promise<void> {
@@ -1167,11 +1405,11 @@ export class AlexaClient {
   }
 
   /**
-   * Get brightness and color temperature state for a smart home endpoint via GraphQL.
-   * Returns brightness (0–100), color temperature (Kelvin), and power state when available.
-   * Uses the same endpoint() query shape as the Alexa mobile app.
+   * Get live state for a smart home endpoint via GraphQL.
+   * Returns power state, reachability, brightness (0–100), and color temperature (Kelvin) when available.
+   * Works for any endpoint type (lights, plugs, switches, etc.).
    */
-  async getBrightnessState(endpointId: string): Promise<{ brightness?: number; colorTemperatureInKelvin?: number; powerState?: string }> {
+  async getEndpointState(endpointId: string): Promise<{ brightness?: number; colorTemperatureInKelvin?: number; powerState?: string; isReachable?: boolean }> {
     try {
       const result = (await this.postGraphql({
         operationName: "EndpointFeaturesQuery",
@@ -1186,6 +1424,7 @@ export class AlexaClient {
                 brightnessStateValue?: number;
                 colorTemperatureInKelvinStateValue?: number;
                 powerStateValue?: string;
+                reachabilityStatusValue?: string;
               }>;
             }>;
           };
@@ -1195,17 +1434,19 @@ export class AlexaClient {
       let brightness: number | undefined;
       let colorTemperatureInKelvin: number | undefined;
       let powerState: string | undefined;
+      let reachable: boolean | undefined;
       for (const f of features) {
         for (const p of f.properties ?? []) {
           if (p.brightnessStateValue !== undefined) brightness = p.brightnessStateValue;
           if (p.colorTemperatureInKelvinStateValue !== undefined) colorTemperatureInKelvin = p.colorTemperatureInKelvinStateValue;
           if (p.powerStateValue !== undefined) powerState = p.powerStateValue;
+          if (p.reachabilityStatusValue !== undefined) reachable = p.reachabilityStatusValue === "REACHABLE";
         }
       }
-      return { brightness, colorTemperatureInKelvin, powerState };
+      return { brightness, colorTemperatureInKelvin, powerState, isReachable: reachable };
     } catch (e) {
       if (process.env.ALEXA_DEBUG) {
-        console.error(`[alexa-mcp] getBrightnessState failed for ${endpointId}:`, e);
+        console.error(`[alexa-mcp] getEndpointState failed for ${endpointId}:`, e);
       }
       return {};
     }

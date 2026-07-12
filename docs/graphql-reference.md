@@ -282,7 +282,7 @@ type FeatureControlError {
 | ------------------------ | ----------------------------- | ------ |
 | Query endpoint features  | `fetchEndpointCapabilities()` | ✅     |
 | Query friendly name      | `fetchFriendlyNames()`        | ✅     |
-| Get brightness state     | `getBrightnessState()`        | ✅     |
+| Get brightness state     | `getEndpointState()`        | ✅     |
 | Set power (on/off)       | `graphqlControl()`            | ✅     |
 | Set brightness           | `graphqlControl()`            | ✅     |
 

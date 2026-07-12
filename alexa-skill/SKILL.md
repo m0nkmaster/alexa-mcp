@@ -68,11 +68,9 @@ alexa-mcp routines             # List routines
 
 # Control
 alexa-mcp speak --device "Office" --text "Meeting in 5 minutes"
-alexa-mcp announce --text "Dinner is ready"
+alexa-mcp announce --text "Dinner is ready"   # broadcasts to ALL devices
+# For one-device speech, use speak (announce is not device-targeted)
 alexa-mcp command --device "Lounge" --text "play jazz"
-alexa-mcp control --name "Kitchen light" --state on
-alexa-mcp control --group "Bedroom" --state off
-alexa-mcp routine --id "amzn1.alexa.behaviors.trigger..."
 
 # Media
 alexa-mcp play --device "Lounge"      # Resume playback

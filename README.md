@@ -12,7 +12,10 @@ MCP server and CLI for Alexa/Echo devices and smart home control via the unoffic
 
 - 🎙️ **Voice & Media Control** - TTS, announcements, playback control
 - 💡 **Smart Home** - Control lights, plugs, and devices by name, pattern, or room group
-- 🤖 **Routines** - List and trigger Alexa routines
+- ✅ **State Verification** - Every control command returns live device state (power, brightness, colour temp)
+- 🔍 **Device Status** - Query current state of any device by name without issuing a command
+- 🏠 **Group Membership** - List all devices in a room group for post-action verification
+- 🤖 **Routines** - List and run routines by name, partial name, or automation ID
 - 🌍 **Multi-Region** - Supports US (amazon.com), UK (amazon.co.uk), and DE (amazon.de)
 - 🔌 **MCP Integration** - Use with Claude, Cursor, and other AI assistants
 - 🛠️ **CLI & Programmatic** - Command-line tool or Node.js library
@@ -58,34 +61,52 @@ alexa-mcp auth logout             # Remove credentials
 
 **Devices & Voice:**
 ```bash
-alexa-mcp devices                      # List Echo devices
-alexa-mcp speak "Hello" -d Office      # Text-to-speech on device
-alexa-mcp announce "Dinner ready"      # Announce to all devices
-alexa-mcp command -d Office "play jazz" # Voice command
+alexa-mcp devices                           # List Echo devices
+alexa-mcp speak "Hello" -d Office           # TTS on one device (positional text)
+alexa-mcp speak --text "Hello" --device Office  # Same, flag form
+alexa-mcp announce "Dinner ready"           # Broadcast to ALL Echo devices
+alexa-mcp announce --text "Dinner ready"    # Same, flag form
+alexa-mcp command -d Office "play jazz"     # Voice command
+alexa-mcp speak --json --text "Hi" -d Office  # Structured JSON output
 ```
 
 **Smart Home:**
 ```bash
-alexa-mcp groups                           # List room groups
-alexa-mcp appliances                       # List smart home devices
-alexa-mcp switch-group Kitchen off         # Turn off lights in room group
-alexa-mcp switch-room "kitchen lights" off # Turn off devices by pattern
-alexa-mcp switch "Lounge light 2" off      # Turn off single device
-alexa-mcp control <entityId> turnOn        # Direct device control
+alexa-mcp groups                              # List room groups
+alexa-mcp group-members Kitchen               # Resolved members + unresolved/stale IDs
+alexa-mcp appliances                          # List smart home devices
+alexa-mcp appliances --type light             # Filter by type: light, switch, plug, sensor, camera
+alexa-mcp status "Lounge lamp"                # Get current state (power, brightness, colour temp)
+alexa-mcp switch-group Kitchen off            # Turn off lights in room group
+alexa-mcp switch-group Kitchen off --dry-run  # Plan targets (name + endpointId) only
+alexa-mcp switch-room "kitchen lights" off    # Turn off devices by pattern
+alexa-mcp switch-room "kitchen" off --dry-run # Plan pattern matches only
+alexa-mcp switch "Lounge light 2" off         # Turn off single device → live state JSON
+alexa-mcp control <entityId> turnOn           # Direct device control → live state JSON
+alexa-mcp batch-control turnOff e1 e2 e3      # Batch control → per-device results + success/partial
+alexa-mcp batch-control turnOff e1 e2 --dry-run
 ```
 
 **Routines & Media:**
 ```bash
-alexa-mcp routines                         # List routines
-alexa-mcp run <automationId>               # Run a routine
-alexa-mcp now-playing -d Office            # Show now-playing
-alexa-mcp media play|pause|next -d Office  # Media control
+alexa-mcp routines                              # List routines (includes name field)
+alexa-mcp run <automationId>                    # Run a routine by ID
+alexa-mcp run --name "our bedtime"              # Run a routine by exact name
+alexa-mcp run --partial "bedtime"               # Run a routine by partial name match
+alexa-mcp now-playing -d Office                 # Show now-playing
+alexa-mcp media play|pause|next -d Office       # Media control
 ```
 
 **Tips:**
-- Use `switch-group` for "all lights in [room]" (e.g., `Kitchen`)
-- Use `switch-room` for pattern matching (e.g., `"kitchen lights"`)
-- Use `switch` for single devices by exact name
+- `announce` always broadcasts to **all** Echo devices. For one device, use `speak --text … --device …`
+- Use `switch-group` for "all lights in [room]" (e.g., `Kitchen`). Unresolved/stale members are skipped by default (`--include-unresolved` to try raw IDs)
+- Use `switch-room` for pattern matching — tries all-words first, falls back to any-word
+- Use `switch` for single devices; matching is exact → startsWith → contains (ambiguous matches return suggestions)
+- Group/pattern/batch results include `success` and `partial` flags; partial failures exit with code `2`
+- Use `--dry-run` on `switch-group`, `switch-room`, and `batch-control` to preview targets
+- Use `status` to verify device state without issuing a command
+- Use `group-members` to see resolved members vs unresolved endpoint IDs
+- Control commands return JSON state where applicable; plain-text commands accept `--json`
 - Direct control methods avoid voice profile issues
 - See [docs/API.md](docs/API.md) for full API reference
 
@@ -159,23 +180,29 @@ If installed locally, use the full path:
 
 **Devices & Voice:**
 - `alexa_list_devices` - List Echo devices
-- `alexa_speak` - Text-to-speech on a device
-- `alexa_announce` - Announce to all devices
+- `alexa_speak` - Text-to-speech on a single device
+- `alexa_announce` - Broadcast announcement to **all** Echo devices (not device-specific; use `alexa_speak` for one device)
 - `alexa_command` - Send voice command
 
 **Smart Home:**
-- `alexa_list_appliances` - List smart home devices
-- `alexa_list_device_groups` - List room groups
-- `alexa_control_by_group` - Control all lights in a room group
-- `alexa_control_by_pattern` - Control devices by name pattern
-- `alexa_switch_by_name` - Control single device by name
+- `alexa_list_appliances` - List smart home devices; optional `type` filter (light/switch/plug/sensor/camera)
+- `alexa_device_status` - Get live state of a device by name (power, brightness, colour temp, reachability)
+- `alexa_list_device_groups` - List room groups with member counts
+- `alexa_group_members` - List group members as `{group, members, unresolved}` (stale endpoint IDs separated)
+- `alexa_control_by_group` - Control lights in a room group; skips unresolved members; returns `success`/`partial`
+- `alexa_control_by_pattern` - Control devices by name pattern (fuzzy fallback: any-word match if all-word fails)
+- `alexa_switch_by_name` - Control single device by name (exact → startsWith → contains; ambiguous → suggestions)
 - `alexa_control_appliance` - Direct control by entity/endpoint ID
-- `alexa_get_brightness_by_name` - Get device brightness
+- `alexa_batch_control_appliances` - Batch control with same action; returns per-device results with `success`/`partial`
+- `alexa_batch_control_appliances_custom` - Batch control with per-device actions; returns per-device results
+- `alexa_get_brightness_by_name` - Get device brightness and power state
 - `alexa_set_brightness_by_name` - Set device brightness
+- `alexa_get_color_temperature_by_name` - Get device colour temperature
+- `alexa_set_color_temperature_by_name` - Set device colour temperature
 
 **Routines & Media:**
-- `alexa_list_routines` - List Alexa routines
-- `alexa_run_routine` - Execute a routine
+- `alexa_list_routines` - List Alexa routines with names and automation IDs
+- `alexa_run_routine` - Execute a routine by `automationId`, exact `name`, or `partial` name match
 - `alexa_list_audio_groups` - List multi-room audio groups
 - `alexa_now_playing` - Get now-playing state
 - `alexa_media_control` - Control playback (play/pause/next/etc.)
