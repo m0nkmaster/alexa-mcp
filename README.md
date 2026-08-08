@@ -6,7 +6,9 @@
 
 **Control your Alexa devices and smart home from the command line or AI assistants.**
 
-MCP server and CLI for Alexa/Echo devices and smart home control via the unofficial Alexa API. Works with Claude Desktop, Cursor, VS Code, and other MCP-compatible tools.
+MCP server for Alexa/Echo devices and smart home control via the unofficial Alexa API. Works with Claude Desktop, Cursor, VS Code, and other MCP-compatible tools.
+
+> Looking for a standalone, LLM-first CLI? Use [`m0nkmaster/alexa-cli`](https://github.com/m0nkmaster/alexa-cli). This repository now stays MCP-focused.
 
 ## Features
 
